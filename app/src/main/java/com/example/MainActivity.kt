@@ -1,7 +1,9 @@
 package com.example
 
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.view.WindowManager
 import com.example.ui.BaseActivity
 import com.example.util.ApkDownloadState
@@ -9,6 +11,7 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -176,7 +179,7 @@ class MainActivity : BaseActivity() {
             // Dynamic Layout Direction: RTL (من اليمين لليسار) for Arabic, LTR for English
             val currentLayoutDirection = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
 
-            LaunchedEffect(effectiveDarkMode) {
+            LaunchedEffect(effectiveDarkMode, isFullScreen) {
                 enableEdgeToEdge(
                     statusBarStyle = if (effectiveDarkMode) {
                         SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
@@ -195,9 +198,15 @@ class MainActivity : BaseActivity() {
                         )
                     }
                 )
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    window.isStatusBarContrastEnforced = false
-                    window.isNavigationBarContrastEnforced = false
+                window.setBackgroundDrawable(
+                    ColorDrawable(if (effectiveDarkMode) 0xFF0B0E14.toInt() else 0xFFF2F6F9.toInt())
+                )
+                applyFullScreenStatusBar(isFullScreen)
+                // Re-apply once decorView finishes attach/layout so cold start into Full Screen stays edge-to-edge
+                window.decorView.post {
+                    if (!isDestroyed && !isFinishing && ::viewModel.isInitialized) {
+                        applyFullScreenStatusBar(viewModel.isFullScreenEnabled.value)
+                    }
                 }
             }
 
@@ -208,11 +217,6 @@ class MainActivity : BaseActivity() {
                 } else {
                     android.view.View.LAYOUT_DIRECTION_LTR
                 }
-            }
-
-            // Hide or show the phone's top status bar dynamically when Full Screen mode toggles
-            LaunchedEffect(isFullScreen) {
-                applyFullScreenStatusBar(isFullScreen)
             }
 
             ShopyPulseTheme(darkTheme = effectiveDarkMode) {
@@ -234,8 +238,22 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun applyFullScreenStatusBar(enabled: Boolean) {
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.clearFlags(
+            WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS or
+                WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION or
+                WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN or
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+        )
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isStatusBarContrastEnforced = false
+            window.isNavigationBarContrastEnforced = false
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val lp = window.attributes
             if (lp.layoutInDisplayCutoutMode != WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS) {
@@ -257,6 +275,14 @@ class MainActivity : BaseActivity() {
         } else {
             controller.show(WindowInsetsCompat.Type.statusBars())
         }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            val edgeLayoutFlags =
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+            window.decorView.systemUiVisibility = window.decorView.systemUiVisibility or edgeLayoutFlags
+        }
+        ViewCompat.requestApplyInsets(window.decorView)
     }
 
     override fun onStart() {
@@ -318,11 +344,13 @@ fun ShopyPulseApp(
     if (resolvedMeasuredTopPx > cachedStatusBarTopPx) {
         cachedStatusBarTopPx = resolvedMeasuredTopPx
     }
-    val effectiveTopPx = if (cachedStatusBarTopPx > 0) {
-        cachedStatusBarTopPx
-    } else {
-        fallbackStatusBarTopPx
-    }
+    val effectiveTopPx = resolvePreservedTopInsetPx(
+        visibleStatusTopPx = visibleStatusTopPx,
+        stableStatusTopPx = stableStatusTopPx,
+        cutoutTopPx = cutoutTopPx,
+        cachedTopPx = cachedStatusBarTopPx,
+        fallbackStatusBarTopPx = fallbackStatusBarTopPx
+    )
     val preservedTopPaddingDp = with(density) { effectiveTopPx.toDp() }
     val currentScreenName by viewModel.currentScreenName.collectAsStateWithLifecycle()
     val currentScreen = remember(currentScreenName) {
@@ -465,7 +493,20 @@ fun ShopyPulseApp(
                                 }
                                 tutorialInteractionBus.isExpecting(TutorialRequiredAction.TAP_SETTINGS_TAB) -> {
                                     if (targetScreen == Screen.SETTINGS) {
+                                        viewModel.setCurrentScreen(Screen.SETTINGS.name)
                                         tutorialFocusScreen = Screen.SETTINGS
+                                        val settingsIdx = pagerScreens.indexOf(Screen.SETTINGS)
+                                        if (settingsIdx >= 0) {
+                                            coroutineScope.launch {
+                                                pagerState.animateScrollToPage(
+                                                    page = settingsIdx,
+                                                    animationSpec = spring(
+                                                        dampingRatio = 0.86f,
+                                                        stiffness = Spring.StiffnessMediumLow
+                                                    )
+                                                )
+                                            }
+                                        }
                                         tutorialInteractionBus.reportAction(TutorialRequiredAction.TAP_SETTINGS_TAB)
                                     }
                                 }
@@ -898,4 +939,15 @@ private fun RowScope.NavItem(
 @Composable
 fun SoukSmartApp(viewModel: ShoppingViewModel, isDarkMode: Boolean = true) {
     ShopyPulseApp(viewModel = viewModel, isDarkMode = isDarkMode)
+}
+
+internal fun resolvePreservedTopInsetPx(
+    visibleStatusTopPx: Int,
+    stableStatusTopPx: Int,
+    cutoutTopPx: Int,
+    cachedTopPx: Int,
+    fallbackStatusBarTopPx: Int
+): Int {
+    val measuredMax = maxOf(visibleStatusTopPx, stableStatusTopPx, cutoutTopPx, cachedTopPx)
+    return if (measuredMax > 0) measuredMax else fallbackStatusBarTopPx.coerceAtLeast(0)
 }

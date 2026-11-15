@@ -188,6 +188,48 @@ class ExampleUnitTest {
     }
 
     @Test
+    fun testFullScreenPreservedTopInsetStability() {
+        // Normal mode -> Full screen (status bar hidden) -> Back to normal: inset stays locked
+        val normalTop = resolvePreservedTopInsetPx(
+            visibleStatusTopPx = 132,
+            stableStatusTopPx = 132,
+            cutoutTopPx = 132,
+            cachedTopPx = 0,
+            fallbackStatusBarTopPx = 96
+        )
+        assertEquals(132, normalTop)
+
+        val fullScreenTop = resolvePreservedTopInsetPx(
+            visibleStatusTopPx = 0,
+            stableStatusTopPx = 132,
+            cutoutTopPx = 132,
+            cachedTopPx = normalTop,
+            fallbackStatusBarTopPx = 96
+        )
+        assertEquals(132, fullScreenTop)
+
+        // Legacy API < 30 cold start directly in Full Screen uses resource status_bar_height fallback
+        val legacyColdStartFullScreen = resolvePreservedTopInsetPx(
+            visibleStatusTopPx = 0,
+            stableStatusTopPx = 0,
+            cutoutTopPx = 0,
+            cachedTopPx = 0,
+            fallbackStatusBarTopPx = 96
+        )
+        assertEquals(96, legacyColdStartFullScreen)
+
+        // Larger display cutout locks safely
+        val cutoutTop = resolvePreservedTopInsetPx(
+            visibleStatusTopPx = 0,
+            stableStatusTopPx = 132,
+            cutoutTopPx = 148,
+            cachedTopPx = 132,
+            fallbackStatusBarTopPx = 96
+        )
+        assertEquals(148, cutoutTop)
+    }
+
+    @Test
     fun testSingleFingerPullUpDetector() {
         val slop = 18f
         // Straight up and slight <=14 deg deviation pass

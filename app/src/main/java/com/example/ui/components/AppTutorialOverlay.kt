@@ -2,10 +2,14 @@ package com.example.ui.components
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
@@ -13,8 +17,10 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -28,15 +34,18 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -152,6 +161,7 @@ fun AppTutorialOverlay(
 
     // Sync target live UI screen & active mandatory gesture expectation
     LaunchedEffect(currentStep.id, isCelebratingSuccess) {
+        nudgeOutsideTapCount = 0
         onFocusScreen(currentStep.targetScreen)
         if (!isCelebratingSuccess) {
             interactionBus?.activeRequiredAction = currentStep.requiredAction
@@ -170,16 +180,18 @@ fun AppTutorialOverlay(
     val completedSeq = interactionBus?.completedActionSequence ?: 0
     LaunchedEffect(completedSeq) {
         if (completedSeq > 0 && interactionBus?.lastCompletedAction == currentStep.requiredAction && !isCelebratingSuccess) {
-            isCelebratingSuccess = true
             completedStepIds = completedStepIds + currentStep.id
             try {
                 haptic.performHapticFeedback(HapticFeedbackType.LongPress)
             } catch (_: Exception) {}
-            delay(540L)
-            isCelebratingSuccess = false
-            if (currentIndex >= steps.lastIndex) {
+
+            // Tapping Settings on the final step enters Settings & completes the tutorial immediately
+            if (currentStep.requiredAction == TutorialRequiredAction.TAP_SETTINGS_TAB || currentIndex >= steps.lastIndex) {
                 onClose()
             } else {
+                isCelebratingSuccess = true
+                delay(420L)
+                isCelebratingSuccess = false
                 currentIndex += 1
             }
         }
@@ -218,27 +230,34 @@ fun AppTutorialOverlay(
     )
 
     val spotlightSpring = remember {
-        spring<Float>(dampingRatio = 0.84f, stiffness = Spring.StiffnessMediumLow)
+        spring<Rect>(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow)
     }
     val hasSpotlightTarget = localTargetRect != null
     val spotlightAlpha by animateFloatAsState(
         targetValue = if (hasSpotlightTarget) 1f else 0f,
-        animationSpec = tween(240),
+        animationSpec = tween(220),
         label = "spotlight_alpha"
     )
-    val fallbackRect = Rect(120f, 300f, 420f, 440f)
-    val goalRect = localTargetRect ?: fallbackRect
-    val animLeft by animateFloatAsState(goalRect.left, spotlightSpring, label = "sp_left")
-    val animTop by animateFloatAsState(goalRect.top, spotlightSpring, label = "sp_top")
-    val animRight by animateFloatAsState(goalRect.right, spotlightSpring, label = "sp_right")
-    val animBottom by animateFloatAsState(goalRect.bottom, spotlightSpring, label = "sp_bottom")
+    val visualRectAnim = remember { Animatable(Rect(120f, 300f, 420f, 440f), Rect.VectorConverter) }
+    var hasInitializedSpotlightRect by remember { mutableStateOf(false) }
+    LaunchedEffect(localTargetRect, currentStep.id) {
+        if (localTargetRect == null) {
+            hasInitializedSpotlightRect = false
+        } else if (!hasInitializedSpotlightRect) {
+            visualRectAnim.snapTo(localTargetRect)
+            hasInitializedSpotlightRect = true
+        } else {
+            visualRectAnim.animateTo(localTargetRect, spotlightSpring)
+        }
+    }
     val animRadiusPx by animateFloatAsState(
         targetValue = with(density) { currentStep.spotlightCornerRadiusDp.dp.toPx() },
-        animationSpec = spotlightSpring,
+        animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
         label = "sp_radius"
     )
     val animatedRect = if (hasSpotlightTarget) {
-        Rect(animLeft, animTop, animRight.coerceAtLeast(animLeft + 8f), animBottom.coerceAtLeast(animTop + 8f))
+        val r = visualRectAnim.value
+        Rect(r.left, r.top, r.right.coerceAtLeast(r.left + 8f), r.bottom.coerceAtLeast(r.top + 8f))
     } else {
         null
     }
@@ -263,34 +282,36 @@ fun AppTutorialOverlay(
         val overlayWidthPx = with(density) { availableWidth.toPx() }
         val overlayHeightPx = with(density) { availableHeight.toPx() }
 
-        // 1. Touch-blocking scrim strips surrounding the spotlight hole (touches INSIDE the hole pass straight through to live UI!)
+        // 1. Touch-blocking scrim strips surrounding the live spotlight cutout (uses raw LTR physical coordinates)
         val passThroughRect: Rect = when {
             currentStep.requiredAction == TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE -> {
                 Rect(0f, 0f, overlayWidthPx, overlayHeightPx)
             }
-            animatedRect != null -> {
-                val extraPx = with(density) { 4.dp.toPx() }
+            localTargetRect != null -> {
+                val extraPx = with(density) { 8.dp.toPx() }
                 Rect(
-                    left = (animatedRect.left - extraPx).coerceIn(0f, overlayWidthPx),
-                    top = (animatedRect.top - extraPx).coerceIn(0f, overlayHeightPx),
-                    right = (animatedRect.right + extraPx).coerceIn(0f, overlayWidthPx),
-                    bottom = (animatedRect.bottom + extraPx).coerceIn(0f, overlayHeightPx)
+                    left = (localTargetRect.left - extraPx).coerceIn(0f, overlayWidthPx),
+                    top = (localTargetRect.top - extraPx).coerceIn(0f, overlayHeightPx),
+                    right = (localTargetRect.right + extraPx).coerceIn(0f, overlayWidthPx),
+                    bottom = (localTargetRect.bottom + extraPx).coerceIn(0f, overlayHeightPx)
                 )
             }
             else -> Rect(0f, 0f, overlayWidthPx, overlayHeightPx)
         }
 
-        ScrimBlockerRegions(
-            totalWidthPx = overlayWidthPx,
-            totalHeightPx = overlayHeightPx,
-            hole = passThroughRect,
-            onBlockedTap = {
-                nudgeOutsideTapCount += 1
-                try {
-                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                } catch (_: Exception) {}
-            }
-        )
+        CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            ScrimBlockerRegions(
+                totalWidthPx = overlayWidthPx,
+                totalHeightPx = overlayHeightPx,
+                hole = passThroughRect,
+                onBlockedTap = {
+                    nudgeOutsideTapCount += 1
+                    try {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    } catch (_: Exception) {}
+                }
+            )
+        }
 
         // 2. Live Dimming Scrim with Smooth Rounded Spotlight Cutout (reveals live interactive widget!)
         Canvas(
@@ -345,24 +366,73 @@ fun AppTutorialOverlay(
             )
         }
 
-        // 4. Smart Balanced Liquid Glass Coachmark Card
-        val placeCardAbove = when {
-            animatedRect == null -> false
-            animatedRect.center.y > overlayHeightPx * 0.50f -> true
-            else -> false
+        // 4. Smart Balanced Liquid Glass Coachmark Card with Overlap-Free Placement
+        val safeTopDp = with(density) { WindowInsets.statusBars.getTop(density).toDp() }
+        val safeBottomDp = with(density) { WindowInsets.navigationBars.getTop(density).coerceAtLeast(WindowInsets.navigationBars.getBottom(density)).toDp() }
+        val outerVerticalPadDp = 14.dp
+        val cueAboveDp = when (currentStep.gestureType) {
+            TutorialGestureType.HORIZONTAL_DOCK_SWIPE -> 48.dp
+            TutorialGestureType.SETTINGS_POINTER -> 72.dp
+            TutorialGestureType.BUDGET_PULSE -> 22.dp
+            else -> 20.dp
+        }
+        val cueBelowDp = when (currentStep.gestureType) {
+            TutorialGestureType.SINGLE_FINGER_PULL_UP -> 28.dp
+            TutorialGestureType.BUDGET_PULSE -> 22.dp
+            else -> 20.dp
         }
 
-        val clearanceFromSpotlight = if (animatedRect != null) {
-            with(density) {
-                if (placeCardAbove) {
-                    (overlayHeightPx - animatedRect.top).coerceAtLeast(0f).toDp() + 34.dp
-                } else {
-                    animatedRect.bottom.coerceAtLeast(0f).toDp() + 26.dp
-                }
-            }
+        val placementRect = localTargetRect ?: animatedRect
+        val rectTopDp = placementRect?.let { with(density) { it.top.toDp() } }
+        val rectBottomDp = placementRect?.let { with(density) { it.bottom.toDp() } }
+        val spaceAboveDp = if (rectTopDp != null) {
+            (rectTopDp - safeTopDp - outerVerticalPadDp - cueAboveDp).coerceAtLeast(0.dp)
         } else {
             0.dp
         }
+        val spaceBelowDp = if (rectBottomDp != null) {
+            ((availableHeight - safeBottomDp - outerVerticalPadDp) - rectBottomDp - cueBelowDp).coerceAtLeast(0.dp)
+        } else {
+            0.dp
+        }
+        val placeCardAbove = when {
+            placementRect == null -> true
+            else -> spaceAboveDp >= spaceBelowDp
+        }
+
+        val maxCardHeight = if (placementRect == null) {
+            (availableHeight * 0.48f).coerceIn(220.dp, 340.dp)
+        } else {
+            val sideSpace = if (placeCardAbove) spaceAboveDp else spaceBelowDp
+            sideSpace.coerceIn(170.dp, 330.dp)
+        }
+
+        val targetCardBottomPad = when {
+            placementRect == null -> 26.dp
+            placeCardAbove && rectTopDp != null -> {
+                val outerBottomY = availableHeight - safeBottomDp - outerVerticalPadDp
+                (outerBottomY - (rectTopDp - cueAboveDp)).coerceIn(0.dp, (availableHeight - maxCardHeight - safeTopDp).coerceAtLeast(0.dp))
+            }
+            else -> 0.dp
+        }
+        val targetCardTopPad = when {
+            placementRect != null && !placeCardAbove && rectBottomDp != null -> {
+                val outerTopY = safeTopDp + outerVerticalPadDp
+                ((rectBottomDp + cueBelowDp) - outerTopY).coerceIn(0.dp, (availableHeight - maxCardHeight - safeBottomDp).coerceAtLeast(0.dp))
+            }
+            else -> 0.dp
+        }
+
+        val animBottomPad by animateDpAsState(
+            targetValue = targetCardBottomPad,
+            animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+            label = "card_bottom_pad"
+        )
+        val animTopPad by animateDpAsState(
+            targetValue = targetCardTopPad,
+            animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+            label = "card_top_pad"
+        )
 
         CompositionLocalProvider(LocalLayoutDirection provides layoutDir) {
             Box(
@@ -370,18 +440,17 @@ fun AppTutorialOverlay(
                     .fillMaxSize()
                     .statusBarsPadding()
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                contentAlignment = if (placeCardAbove || animatedRect == null) {
+                    .padding(horizontal = 20.dp, vertical = outerVerticalPadDp),
+                contentAlignment = if (placeCardAbove || placementRect == null) {
                     Alignment.BottomCenter
                 } else {
                     Alignment.TopCenter
                 }
             ) {
-                val maxCardHeight = (availableHeight * 0.48f).coerceIn(220.dp, 340.dp)
-                val safeCardModifier = when {
-                    animatedRect == null -> Modifier.padding(bottom = 26.dp)
-                    placeCardAbove -> Modifier.padding(bottom = clearanceFromSpotlight.coerceAtMost(availableHeight * 0.44f))
-                    else -> Modifier.padding(top = clearanceFromSpotlight.coerceAtMost(availableHeight * 0.46f))
+                val safeCardModifier = if (placeCardAbove || placementRect == null) {
+                    Modifier.padding(bottom = animBottomPad)
+                } else {
+                    Modifier.padding(top = animTopPad)
                 }
 
                 Box(
@@ -427,6 +496,12 @@ fun AppTutorialOverlay(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .animateContentSize(
+                                animationSpec = spring(
+                                    dampingRatio = 0.86f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                )
+                            )
                             .verticalScroll(rememberScrollState())
                             .padding(horizontal = 18.dp, vertical = 16.dp),
                         horizontalAlignment = Alignment.Start
@@ -685,8 +760,13 @@ fun AppTutorialOverlay(
 
                         // Optional Navigation Row ONLY for stepping back or advancing after already completing a step / generic step
                         val canAdvance = isCurrentStepCompleted || currentStep.requiredAction == TutorialRequiredAction.TAP_TO_CONTINUE
-                        if (currentIndex > 0 || canAdvance) {
-                            Spacer(modifier = Modifier.height(12.dp))
+                        AnimatedVisibility(
+                            visible = currentIndex > 0 || canAdvance,
+                            enter = fadeIn(tween(180)) + expandVertically(tween(200)),
+                            exit = fadeOut(tween(140)) + shrinkVertically(tween(160))
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                Spacer(modifier = Modifier.height(12.dp))
                             val isLast = currentIndex == steps.lastIndex
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -773,6 +853,7 @@ fun AppTutorialOverlay(
                                     }
                                 }
                             }
+                            }
                         }
                     }
                 }
@@ -829,7 +910,7 @@ private fun BlockerBox(
     val hDp = with(density) { hPx.coerceAtLeast(0f).toDp() }
     Box(
         modifier = Modifier
-            .offset { IntOffset(xPx.roundToInt(), yPx.roundToInt()) }
+            .absoluteOffset { IntOffset(xPx.roundToInt(), yPx.roundToInt()) }
             .size(width = wDp, height = hDp)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
