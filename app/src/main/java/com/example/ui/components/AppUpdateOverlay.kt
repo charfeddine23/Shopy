@@ -71,10 +71,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalUriHandler
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
 import com.example.ui.theme.NeonAmber
 import com.example.util.ApkDownloadState
+import com.example.util.AppUpdateChecker
 import com.example.util.AppUpdateStatus
 import java.util.Locale
 
@@ -420,6 +422,7 @@ fun AppUpdateOverlay(
                                 }
 
                                 is ApkDownloadState.Failed -> {
+                                    val uriHandler = LocalUriHandler.current
                                     Column(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalAlignment = Alignment.CenterHorizontally
@@ -443,6 +446,39 @@ fun AppUpdateOverlay(
                                             onClick = { onUpdateClick(updateInfo.downloadUrl) },
                                             testTag = "update_overlay_retry_button"
                                         )
+
+                                        val safePageUrl = state.fallbackUrl.takeIf { AppUpdateChecker.isTrustedUpdateUrl(it) }
+                                            ?: AppUpdateChecker.UPDATE_URL
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(48.dp)
+                                                .clip(RoundedCornerShape(14.dp))
+                                                .background(Color(0x1FFFFFFF))
+                                                .border(
+                                                    BorderStroke(1.dp, Color.White.copy(alpha = 0.22f)),
+                                                    RoundedCornerShape(14.dp)
+                                                )
+                                                .clickable(
+                                                    interactionSource = remember { MutableInteractionSource() },
+                                                    indication = ripple(bounded = true, color = Color.White),
+                                                    onClick = {
+                                                        try {
+                                                            uriHandler.openUri(safePageUrl)
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                )
+                                                .testTag("update_overlay_open_github_button"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = if (isArabic) "فتح صفحة التحديث على GitHub" else "Open Update on GitHub",
+                                                color = Color.White.copy(alpha = 0.92f),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                     }
                                 }
                             }

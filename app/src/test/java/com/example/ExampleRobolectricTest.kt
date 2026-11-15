@@ -115,4 +115,13 @@ class ExampleRobolectricTest {
     assertFalse(waterState.isSimulating)
     assertFalse(waterState.hasActiveDisturbance)
   }
+
+  @Test
+  fun `app update checker parses version json accurately`() {
+    val versionJson = """{"versionName": "1.5.0", "versionCode": 5, "notes": "Bug fixes", "apkUrl": "https://github.com/charfeddine23/Shopy/releases/download/v1.5.0/Shopy.apk"}"""
+    val jsonCandidate = com.example.util.AppUpdateChecker.parseVersionJson(versionJson)
+    assertEquals("1.5.0", jsonCandidate?.versionLabel)
+    assertEquals(5, jsonCandidate?.buildCode)
+    assertEquals("https://github.com/charfeddine23/Shopy/releases/download/v1.5.0/Shopy.apk", jsonCandidate?.downloadUrl)
+  }
 }

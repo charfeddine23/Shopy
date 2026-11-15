@@ -94,8 +94,53 @@ class ExampleUnitTest {
         assertEquals("https://github.com/charfeddine23/Shopy", AppUpdateChecker.UPDATE_URL)
         assertTrue(AppUpdateChecker.isNewerVersion("v1.1", "1.0"))
         assertTrue(AppUpdateChecker.isNewerVersion("2.0.0", "1.9.5"))
+        assertTrue(AppUpdateChecker.isNewerVersion("Shopy-v1.2.0", "1.0"))
+        assertTrue(AppUpdateChecker.isNewerVersion("Release 1.3-beta", "1.0"))
+        assertTrue(AppUpdateChecker.isNewerVersion("v2", "1.0"))
+        assertTrue(AppUpdateChecker.isNewerVersion("1.0", "1.0", remoteBuildCode = 2, currentBuildCode = 1))
+        assertTrue(AppUpdateChecker.isNewerVersion("Build 3", "1.0", remoteBuildCode = 3, currentBuildCode = 1))
         assertFalse(AppUpdateChecker.isNewerVersion("v1.0", "1.0"))
         assertFalse(AppUpdateChecker.isNewerVersion("0.9", "1.0"))
+        assertFalse(AppUpdateChecker.isNewerVersion("Build 1", "1.0", remoteBuildCode = 1, currentBuildCode = 1))
+        assertFalse(AppUpdateChecker.isNewerVersion("latest", "1.0"))
+
+        // Lexicographical tags order trap: v1.10 must beat v1.9 and v1.2
+        val highestTag = AppUpdateChecker.extractHighestTag(listOf("v1.0", "v1.9", "v1.10", "v1.2"))
+        assertEquals("v1.10", highestTag)
+
+        // Parse Kotlin DSL build.gradle.kts with System.getenv fallback (matches repo pattern)
+        val gradleKts = """
+            defaultConfig {
+              versionCode = System.getenv("APP_VERSION_CODE")?.toIntOrNull() ?: 4
+              versionName = System.getenv("APP_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "1.4.0"
+            }
+        """.trimIndent()
+        val (parsedName, parsedCode) = AppUpdateChecker.parseBuildGradleVersion(gradleKts)
+        assertEquals("1.4.0", parsedName)
+        assertEquals(4, parsedCode)
+
+        // Parse releases.atom feed (rate-limit-proof fallback)
+        val atomXml = """
+            <feed>
+              <entry>
+                <id>tag:github.com,2008:Repository/1/v1.2.1</id>
+                <updated>2026-11-15T04:00:00Z</updated>
+                <link rel="alternate" type="text/html" href="https://github.com/charfeddine23/Shopy/releases/tag/v1.2.1"/>
+                <title>Shopy v1.2.1</title>
+                <content type="html">&lt;p&gt;New update ready&lt;/p&gt;</content>
+              </entry>
+            </feed>
+        """.trimIndent()
+        val atomCandidates = AppUpdateChecker.parseReleasesAtom(atomXml)
+        assertEquals(1, atomCandidates.size)
+        assertEquals("v1.2.1", atomCandidates.first().versionLabel)
+        assertEquals("New update ready", atomCandidates.first().releaseNotes)
+        assertEquals("2026-11-15", atomCandidates.first().publishedAt)
+
+        // Extract .apk URL from expanded_assets HTML fragment
+        val html = """<a href="/charfeddine23/Shopy/releases/download/v1.2.1/Shopy-release.apk" rel="nofollow">Shopy-release.apk</a>"""
+        val apkLinks = AppUpdateChecker.extractApkUrlsFromExpandedAssetsHtml(html)
+        assertEquals(listOf("https://github.com/charfeddine23/Shopy/releases/download/v1.2.1/Shopy-release.apk"), apkLinks)
     }
 
     @Test

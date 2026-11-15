@@ -19,6 +19,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URLDecoder
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 sealed class AppUpdateStatus {
@@ -66,22 +68,39 @@ sealed class ApkDownloadState {
     ) : ApkDownloadState()
 }
 
+internal data class RemoteVersionCandidate(
+    val versionLabel: String,
+    val buildCode: Int? = null,
+    val releaseNotes: String = "",
+    val downloadUrl: String? = null,
+    val releasePageUrl: String? = null,
+    val publishedAt: String = "",
+    val tagName: String? = null,
+    val isPreRelease: Boolean = false
+)
+
 object AppUpdateChecker {
 
     const val UPDATE_URL = "https://github.com/charfeddine23/Shopy"
     private val REPO_SLUGS = listOf(
         "charfeddine23/Shopy"
     )
-    private val RELEASE_API_ENDPOINTS = REPO_SLUGS.map {
-        "https://api.github.com/repos/$it/releases/latest"
-    }
 
     private const val MAX_APK_SIZE_BYTES = 200L * 1024L * 1024L
+
+    private val DOTTED_VERSION_REGEX = Regex("""\d+(?:\.\d+)+""")
+    private val SINGLE_V_VERSION_REGEX = Regex("""(?i)(?:^|[^0-9a-z])v(\d{1,3})(?=$|[^0-9a-z.])|^\s*(\d{1,3})\s*$""")
+    private val BUILD_CODE_REGEX = Regex("""(?i)(?:\+|build[\s._-]*|code[\s._-]*)(\d+)""")
+    private val ENTRY_REGEX = Regex("""<entry>([\s\S]*?)</entry>""", RegexOption.IGNORE_CASE)
+    private val EXPANDED_ASSET_APK_REGEX = Regex(
+        """href=["'](/[^"']+/releases/download/[^"']+\.apk(?:\?[^"']*)?)["']""",
+        RegexOption.IGNORE_CASE
+    )
 
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(45, TimeUnit.SECONDS)
             .followRedirects(true)
             .followSslRedirects(true)
             .build()
@@ -107,134 +126,663 @@ object AppUpdateChecker {
             (host.startsWith("github-production-release-asset-") && host.endsWith(".amazonaws.com"))
     }
 
-    suspend fun checkForUpdate(currentVersionName: String): AppUpdateStatus = withContext(Dispatchers.IO) {
-        // 1. Try GitHub Releases API to read version tag, release notes, and direct .apk asset URL
-        for (apiUrl in RELEASE_API_ENDPOINTS) {
-            try {
-                val request = Request.Builder()
-                    .url(apiUrl)
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "ShopyPulse-Android")
-                    .build()
-
-                client.newCall(request).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val bodyStr = response.body?.string()
-                        if (!bodyStr.isNullOrBlank()) {
-                            val json = JSONObject(bodyStr)
-                            val tagName = json.optString("tag_name", "").trim()
-                            val releaseName = json.optString("name", tagName).trim()
-                            val releaseNotes = json.optString("body", "").trim()
-                            val publishedAt = json.optString("published_at", "").take(10)
-
-                            val apkDownloadUrl = extractApkAssetUrl(json)
-                                ?: resolveApkUrlFromGithub()
-                                ?: UPDATE_URL
-
-                            val remoteVersion = tagName.ifBlank { releaseName }.ifBlank { currentVersionName }
-                            return@withContext if (isNewerVersion(remoteVersion, currentVersionName)) {
-                                AppUpdateStatus.UpdateAvailable(
-                                    currentVersion = currentVersionName,
-                                    latestVersion = remoteVersion,
-                                    releaseNotes = releaseNotes,
-                                    downloadUrl = apkDownloadUrl,
-                                    publishedAt = publishedAt
-                                )
-                            } else {
-                                AppUpdateStatus.UpToDate(
-                                    currentVersion = currentVersionName,
-                                    directUrl = apkDownloadUrl
-                                )
-                            }
-                        }
-                    }
+    private fun buildRequest(url: String, accept: String? = null): Request {
+        return Request.Builder()
+            .url(url)
+            .header("User-Agent", "ShopyPulse-Android")
+            .header("Cache-Control", "no-cache, no-store, must-revalidate")
+            .header("Pragma", "no-cache")
+            .apply {
+                if (!accept.isNullOrBlank()) {
+                    header("Accept", accept)
                 }
-            } catch (_: Exception) {
-                // Try next endpoint
             }
-        }
+            .build()
+    }
 
-        // 2. Fallback: Check GitHub Tags API + resolve APK asset URL
+    suspend fun checkForUpdate(
+        currentVersionName: String,
+        currentVersionCode: Int = 1
+    ): AppUpdateStatus = withContext(Dispatchers.IO) {
+        var anyNetworkReachable = false
+        var bestUpToDateUrl: String? = null
+        val candidates = mutableListOf<RemoteVersionCandidate>()
+
         for (slug in REPO_SLUGS) {
-            try {
-                val tagReq = Request.Builder()
-                    .url("https://api.github.com/repos/$slug/tags")
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "ShopyPulse-Android")
-                    .build()
+            // 1. GitHub Releases API (captures both stable releases AND pre-releases)
+            val apiReleasesResult = fetchReleasesFromApi(slug)
+            if (apiReleasesResult.reachable) anyNetworkReachable = true
+            candidates.addAll(apiReleasesResult.candidates)
 
-                client.newCall(tagReq).execute().use { response ->
-                    if (response.isSuccessful) {
-                        val bodyStr = response.body?.string()
-                        if (!bodyStr.isNullOrBlank() && bodyStr.trim().startsWith("[")) {
-                            val tagsArray = JSONArray(bodyStr)
-                            if (tagsArray.length() > 0) {
-                                val latestTag = tagsArray.getJSONObject(0).optString("name", "").trim()
-                                if (latestTag.isNotBlank()) {
-                                    val resolvedApk = resolveApkUrlFromGithub() ?: UPDATE_URL
-                                    return@withContext if (isNewerVersion(latestTag, currentVersionName)) {
-                                        AppUpdateStatus.UpdateAvailable(
-                                            currentVersion = currentVersionName,
-                                            latestVersion = latestTag,
-                                            releaseNotes = "",
-                                            downloadUrl = resolvedApk
-                                        )
-                                    } else {
-                                        AppUpdateStatus.UpToDate(
-                                            currentVersion = currentVersionName,
-                                            directUrl = resolvedApk
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (_: Exception) {
-                // Continue to direct probe
+            // 2. Also probe /releases/latest API in case of pagination or pinned latest
+            val apiLatestResult = fetchLatestReleaseFromApi(slug)
+            if (apiLatestResult.reachable) anyNetworkReachable = true
+            candidates.addAll(apiLatestResult.candidates)
+
+            // 3. Rate-limit-proof GitHub Atom feed + /releases/latest web redirect (no REST API quota)
+            if (apiReleasesResult.candidates.isEmpty() && apiLatestResult.candidates.isEmpty()) {
+                val atomResult = fetchReleasesFromAtom(slug)
+                if (atomResult.reachable) anyNetworkReachable = true
+                candidates.addAll(atomResult.candidates)
+
+                val redirectCandidate = fetchLatestReleaseViaWebRedirect(slug)
+                if (redirectCandidate.reachable) anyNetworkReachable = true
+                candidates.addAll(redirectCandidate.candidates)
             }
-        }
 
-        // 3. Fallback: Resolve direct APK binary from repo releases/contents or direct endpoint
-        try {
-            val resolvedApk = resolveApkUrlFromGithub()
-            if (!resolvedApk.isNullOrBlank()) {
-                return@withContext AppUpdateStatus.ReadyDirectLink(
+            // Pick highest-version release candidate so far
+            val bestRelease = selectBestCandidate(candidates)
+            if (bestRelease != null) {
+                val apkOrPage = bestRelease.downloadUrl
+                    ?: bestRelease.tagName?.let { resolveApkFromExpandedAssets(slug, it) }
+                    ?: bestRelease.releasePageUrl
+                if (!apkOrPage.isNullOrBlank()) bestUpToDateUrl = apkOrPage
+
+                if (isNewerVersion(bestRelease.versionLabel, currentVersionName, bestRelease.buildCode, currentVersionCode)) {
+                    val resolvedDownload = bestRelease.downloadUrl
+                        ?: bestRelease.tagName?.let { resolveApkFromExpandedAssets(slug, it) }
+                        ?: resolveApkUrlFromGithub(preferredTag = bestRelease.tagName)
+                        ?: bestRelease.releasePageUrl?.takeIf { isTrustedUpdateUrl(it) }
+                        ?: UPDATE_URL
+                    return@withContext AppUpdateStatus.UpdateAvailable(
+                        currentVersion = currentVersionName,
+                        latestVersion = bestRelease.versionLabel,
+                        releaseNotes = bestRelease.releaseNotes,
+                        downloadUrl = resolvedDownload,
+                        publishedAt = bestRelease.publishedAt
+                    )
+                }
+            }
+
+            // 4. Check ALL GitHub Tags (API + tags.atom fallback) and compare semantically across ALL tags
+            val tagCandidates = mutableListOf<String>()
+            val apiTags = fetchTagsFromApi(slug)
+            if (apiTags.reachable) anyNetworkReachable = true
+            tagCandidates.addAll(apiTags.tags)
+
+            if (tagCandidates.isEmpty()) {
+                val atomTags = fetchTagsFromAtom(slug)
+                if (atomTags.reachable) anyNetworkReachable = true
+                tagCandidates.addAll(atomTags.tags)
+            }
+
+            val highestTag = extractHighestTag(tagCandidates)
+            if (!highestTag.isNullOrBlank()) {
+                val tagBuildCode = extractBuildCode(highestTag)
+                if (isNewerVersion(highestTag, currentVersionName, tagBuildCode, currentVersionCode)) {
+                    val resolvedApk = resolveApkFromExpandedAssets(slug, highestTag)
+                        ?: resolveApkUrlFromGithub(preferredTag = highestTag)
+                        ?: "https://github.com/$slug/releases/tag/${encodePathSegment(highestTag)}"
+                    return@withContext AppUpdateStatus.UpdateAvailable(
+                        currentVersion = currentVersionName,
+                        latestVersion = highestTag,
+                        releaseNotes = "",
+                        downloadUrl = resolvedApk
+                    )
+                }
+            }
+
+            // 5. Repo metadata fallback (version.json, app/build.gradle.kts, committed versioned .apk)
+            val repoCandidate = fetchRepoMetadataCandidate(slug)
+            if (repoCandidate.reachable) anyNetworkReachable = true
+            val meta = repoCandidate.candidate
+            if (meta != null && isNewerVersion(meta.versionLabel, currentVersionName, meta.buildCode, currentVersionCode)) {
+                val resolvedApk = meta.downloadUrl?.takeIf { isTrustedUpdateUrl(it) }
+                    ?: resolveApkUrlFromGithub()
+                    ?: UPDATE_URL
+                return@withContext AppUpdateStatus.UpdateAvailable(
                     currentVersion = currentVersionName,
-                    downloadUrl = resolvedApk
+                    latestVersion = meta.versionLabel,
+                    releaseNotes = meta.releaseNotes,
+                    downloadUrl = resolvedApk,
+                    publishedAt = meta.publishedAt
                 )
             }
-            val headReq = Request.Builder()
-                .url(UPDATE_URL)
-                .head()
-                .header("User-Agent", "ShopyPulse-Android")
-                .build()
+        }
 
+        if (anyNetworkReachable) {
+            return@withContext AppUpdateStatus.UpToDate(
+                currentVersion = currentVersionName,
+                directUrl = bestUpToDateUrl ?: UPDATE_URL
+            )
+        }
+
+        // Last connectivity probe against github.com repository URL directly
+        try {
+            val headReq = buildRequest(UPDATE_URL).newBuilder().head().build()
             client.newCall(headReq).execute().use { response ->
-                val rawResolved = response.request.url.toString()
-                val resolvedUrl = if (isTrustedUpdateUrl(rawResolved)) rawResolved else UPDATE_URL
-                return@withContext AppUpdateStatus.ReadyDirectLink(
-                    currentVersion = currentVersionName,
-                    downloadUrl = resolvedUrl
+                if (response.isSuccessful) {
+                    return@withContext AppUpdateStatus.UpToDate(
+                        currentVersion = currentVersionName,
+                        directUrl = UPDATE_URL
+                    )
+                }
+            }
+        } catch (_: Exception) {
+            // Fall through to error
+        }
+
+        return@withContext AppUpdateStatus.Error(
+            messageAr = "تعذر الاتصال بخادم التحديثات. تحقق من اتصال الإنترنت وحاول مجدداً.",
+            messageEn = "Unable to reach update server. Check your connection and try again.",
+            fallbackUrl = UPDATE_URL
+        )
+    }
+
+    private data class CandidateFetchResult(
+        val reachable: Boolean,
+        val candidates: List<RemoteVersionCandidate> = emptyList()
+    )
+
+    private data class TagsFetchResult(
+        val reachable: Boolean,
+        val tags: List<String> = emptyList()
+    )
+
+    private data class SingleCandidateResult(
+        val reachable: Boolean,
+        val candidate: RemoteVersionCandidate? = null
+    )
+
+    private fun fetchReleasesFromApi(slug: String): CandidateFetchResult {
+        return try {
+            val req = buildRequest(
+                url = "https://api.github.com/repos/$slug/releases?per_page=15",
+                accept = "application/vnd.github+json"
+            )
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    return CandidateFetchResult(reachable = resp.code == 404)
+                }
+                val body = resp.body?.string().orEmpty().trim()
+                if (!body.startsWith("[")) return CandidateFetchResult(reachable = true)
+                val arr = JSONArray(body)
+                val out = mutableListOf<RemoteVersionCandidate>()
+                for (i in 0 until arr.length()) {
+                    val obj = arr.optJSONObject(i) ?: continue
+                    if (obj.optBoolean("draft", false)) continue
+                    parseReleaseJsonObject(obj)?.let(out::add)
+                }
+                CandidateFetchResult(reachable = true, candidates = out)
+            }
+        } catch (_: Exception) {
+            CandidateFetchResult(reachable = false)
+        }
+    }
+
+    private fun fetchLatestReleaseFromApi(slug: String): CandidateFetchResult {
+        return try {
+            val req = buildRequest(
+                url = "https://api.github.com/repos/$slug/releases/latest",
+                accept = "application/vnd.github+json"
+            )
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    return CandidateFetchResult(reachable = resp.code == 404)
+                }
+                val body = resp.body?.string().orEmpty().trim()
+                if (!body.startsWith("{")) return CandidateFetchResult(reachable = true)
+                val candidate = parseReleaseJsonObject(JSONObject(body))
+                CandidateFetchResult(
+                    reachable = true,
+                    candidates = listOfNotNull(candidate)
                 )
             }
         } catch (_: Exception) {
-            return@withContext AppUpdateStatus.Error(
-                messageAr = "تعذر الاتصال بخادم التحديثات. تحقق من اتصال الإنترنت وحاول مجدداً.",
-                messageEn = "Unable to reach update server. Check your connection and try again.",
-                fallbackUrl = UPDATE_URL
+            CandidateFetchResult(reachable = false)
+        }
+    }
+
+    private fun parseReleaseJsonObject(json: JSONObject): RemoteVersionCandidate? {
+        val tagName = json.optString("tag_name", "").trim()
+        val releaseName = json.optString("name", "").trim()
+        val releaseNotes = json.optString("body", "").trim()
+        val publishedAt = json.optString("published_at", "").take(10)
+        val htmlUrl = json.optString("html_url", "").trim().takeIf { isTrustedUpdateUrl(it) }
+        val isPreRelease = json.optBoolean("prerelease", false)
+        val apkAsset = extractApkAssetInfo(json)
+        val apkUrl = apkAsset?.second
+        val assetName = apkAsset?.first.orEmpty()
+
+        val bestVersionLabel = pickBestVersionLabel(tagName, releaseName, assetName) ?: return null
+        val buildCode = extractBuildCode(tagName) ?: extractBuildCode(releaseName) ?: extractBuildCode(assetName)
+
+        return RemoteVersionCandidate(
+            versionLabel = bestVersionLabel,
+            buildCode = buildCode,
+            releaseNotes = releaseNotes,
+            downloadUrl = apkUrl,
+            releasePageUrl = htmlUrl,
+            publishedAt = publishedAt,
+            tagName = tagName.ifBlank { null },
+            isPreRelease = isPreRelease
+        )
+    }
+
+    private fun fetchReleasesFromAtom(slug: String): CandidateFetchResult {
+        return try {
+            val req = buildRequest(
+                url = "https://github.com/$slug/releases.atom",
+                accept = "application/atom+xml, application/xml, text/xml"
             )
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    return CandidateFetchResult(reachable = resp.code == 404)
+                }
+                val xml = resp.body?.string().orEmpty()
+                CandidateFetchResult(
+                    reachable = true,
+                    candidates = parseReleasesAtom(xml)
+                )
+            }
+        } catch (_: Exception) {
+            CandidateFetchResult(reachable = false)
+        }
+    }
+
+    private fun fetchLatestReleaseViaWebRedirect(slug: String): CandidateFetchResult {
+        return try {
+            val req = buildRequest("https://github.com/$slug/releases/latest")
+            client.newCall(req).execute().use { resp ->
+                val finalUrl = resp.request.url.toString()
+                if (!isTrustedUpdateUrl(finalUrl)) return CandidateFetchResult(reachable = false)
+                val tagMarker = "/releases/tag/"
+                val idx = finalUrl.indexOf(tagMarker)
+                if (idx >= 0) {
+                    val rawTag = finalUrl.substring(idx + tagMarker.length).substringBefore("?").substringBefore("#")
+                    val decodedTag = try {
+                        URLDecoder.decode(rawTag, "UTF-8")
+                    } catch (_: Exception) {
+                        rawTag
+                    }.trim()
+                    if (decodedTag.isNotBlank() && parseVersionNumbers(decodedTag).isNotEmpty()) {
+                        return CandidateFetchResult(
+                            reachable = true,
+                            candidates = listOf(
+                                RemoteVersionCandidate(
+                                    versionLabel = decodedTag,
+                                    buildCode = extractBuildCode(decodedTag),
+                                    releasePageUrl = finalUrl,
+                                    tagName = decodedTag
+                                )
+                            )
+                        )
+                    }
+                }
+                CandidateFetchResult(reachable = resp.isSuccessful)
+            }
+        } catch (_: Exception) {
+            CandidateFetchResult(reachable = false)
+        }
+    }
+
+    private fun fetchTagsFromApi(slug: String): TagsFetchResult {
+        return try {
+            val req = buildRequest(
+                url = "https://api.github.com/repos/$slug/tags?per_page=30",
+                accept = "application/vnd.github+json"
+            )
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    return TagsFetchResult(reachable = resp.code == 404)
+                }
+                val body = resp.body?.string().orEmpty().trim()
+                if (!body.startsWith("[")) return TagsFetchResult(reachable = true)
+                val arr = JSONArray(body)
+                val tags = mutableListOf<String>()
+                for (i in 0 until arr.length()) {
+                    val name = arr.optJSONObject(i)?.optString("name", "")?.trim().orEmpty()
+                    if (name.isNotBlank()) tags.add(name)
+                }
+                TagsFetchResult(reachable = true, tags = tags)
+            }
+        } catch (_: Exception) {
+            TagsFetchResult(reachable = false)
+        }
+    }
+
+    private fun fetchTagsFromAtom(slug: String): TagsFetchResult {
+        return try {
+            val req = buildRequest(
+                url = "https://github.com/$slug/tags.atom",
+                accept = "application/atom+xml, application/xml, text/xml"
+            )
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    return TagsFetchResult(reachable = resp.code == 404)
+                }
+                val xml = resp.body?.string().orEmpty()
+                TagsFetchResult(reachable = true, tags = parseTagsAtom(xml))
+            }
+        } catch (_: Exception) {
+            TagsFetchResult(reachable = false)
+        }
+    }
+
+    private fun fetchRepoMetadataCandidate(slug: String): SingleCandidateResult {
+        var reachable = false
+        // 1. Check optional version.json / update.json in repo root
+        for (fileName in listOf("version.json", "update.json")) {
+            try {
+                val req = buildRequest("https://raw.githubusercontent.com/$slug/HEAD/$fileName")
+                client.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        reachable = true
+                        val parsed = parseVersionJson(resp.body?.string().orEmpty())
+                        if (parsed != null) return SingleCandidateResult(reachable = true, candidate = parsed)
+                    } else if (resp.code == 404) {
+                        reachable = true
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. Check app/build.gradle.kts or app/build.gradle on default branch (or main/master)
+        val gradlePaths = listOf(
+            "HEAD/app/build.gradle.kts",
+            "HEAD/app/build.gradle",
+            "main/app/build.gradle.kts",
+            "master/app/build.gradle.kts"
+        )
+        for (path in gradlePaths) {
+            try {
+                val req = buildRequest("https://raw.githubusercontent.com/$slug/$path")
+                client.newCall(req).execute().use { resp ->
+                    if (resp.isSuccessful) {
+                        reachable = true
+                        val content = resp.body?.string().orEmpty()
+                        val (vName, vCode) = parseBuildGradleVersion(content)
+                        val cleanLabel = vName?.takeIf { it.isNotBlank() } ?: vCode?.let { "Build $it" }
+                        if (!cleanLabel.isNullOrBlank()) {
+                            return SingleCandidateResult(
+                                reachable = true,
+                                candidate = RemoteVersionCandidate(
+                                    versionLabel = cleanLabel,
+                                    buildCode = vCode
+                                )
+                            )
+                        }
+                    } else if (resp.code == 404) {
+                        reachable = true
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 3. Check committed versioned APK filename in repository tree
+        val apkFromRepo = resolveApkInfoFromRepoTree(slug)
+        if (apkFromRepo != null) {
+            reachable = true
+            val (fileName, rawUrl) = apkFromRepo
+            if (parseVersionNumbers(fileName).isNotEmpty()) {
+                return SingleCandidateResult(
+                    reachable = true,
+                    candidate = RemoteVersionCandidate(
+                        versionLabel = fileName.removeSuffix(".apk"),
+                        buildCode = extractBuildCode(fileName),
+                        downloadUrl = rawUrl
+                    )
+                )
+            }
+        }
+
+        return SingleCandidateResult(reachable = reachable, candidate = null)
+    }
+
+    internal fun parseReleasesAtom(xml: String): List<RemoteVersionCandidate> {
+        if (xml.isBlank()) return emptyList()
+        val out = mutableListOf<RemoteVersionCandidate>()
+        for (match in ENTRY_REGEX.findAll(xml)) {
+            val block = match.groupValues[1]
+            val idText = extractTagText(block, "id").orEmpty()
+            val titleText = extractTagText(block, "title").orEmpty()
+            val updatedText = extractTagText(block, "updated").orEmpty().take(10)
+            val linkHref = Regex("""<link[^>]*href=["']([^"']+)["']""", RegexOption.IGNORE_CASE)
+                .find(block)?.groupValues?.getOrNull(1).orEmpty()
+
+            val tagFromLink = linkHref.substringAfter("/releases/tag/", "")
+                .substringBefore("?")
+                .substringBefore("#")
+                .let { raw ->
+                    if (raw.isBlank()) "" else try {
+                        URLDecoder.decode(raw, "UTF-8")
+                    } catch (_: Exception) {
+                        raw
+                    }
+                }
+            val tagFromId = idText.substringAfterLast("/", "")
+            val rawTag = tagFromLink.ifBlank { tagFromId }.trim()
+
+            val rawContent = extractTagText(block, "content").orEmpty()
+            val cleanNotes = unescapeXmlEntities(rawContent)
+                .replace(Regex("<[^>]+>"), " ")
+                .replace(Regex("\\s+"), " ")
+                .trim()
+
+            val label = pickBestVersionLabel(rawTag, titleText) ?: continue
+            out.add(
+                RemoteVersionCandidate(
+                    versionLabel = label,
+                    buildCode = extractBuildCode(rawTag) ?: extractBuildCode(titleText),
+                    releaseNotes = cleanNotes,
+                    releasePageUrl = linkHref.takeIf { isTrustedUpdateUrl(it) },
+                    publishedAt = updatedText,
+                    tagName = rawTag.ifBlank { null }
+                )
+            )
+        }
+        return out
+    }
+
+    internal fun parseTagsAtom(xml: String): List<String> {
+        if (xml.isBlank()) return emptyList()
+        val tags = mutableListOf<String>()
+        for (match in ENTRY_REGEX.findAll(xml)) {
+            val block = match.groupValues[1]
+            val titleText = extractTagText(block, "title").orEmpty().trim()
+            val idTag = extractTagText(block, "id").orEmpty().substringAfterLast("/", "").trim()
+            val chosen = titleText.ifBlank { idTag }
+            if (chosen.isNotBlank()) tags.add(chosen)
+        }
+        return tags
+    }
+
+    internal fun parseVersionJson(content: String): RemoteVersionCandidate? {
+        if (content.isBlank() || !content.trim().startsWith("{")) return null
+        return try {
+            val obj = JSONObject(content)
+            val vName = obj.optString("versionName", "")
+                .ifBlank { obj.optString("latestVersion", "") }
+                .ifBlank { obj.optString("version", "") }
+                .trim()
+            val vCode = obj.optInt("versionCode", -1).takeIf { it > 0 }
+            val notes = obj.optString("releaseNotes", "")
+                .ifBlank { obj.optString("notes", "") }
+                .trim()
+            val rawApkUrl = obj.optString("apkUrl", "")
+                .ifBlank { obj.optString("downloadUrl", "") }
+                .trim()
+                .takeIf { isTrustedUpdateUrl(it) }
+            val publishedAt = obj.optString("publishedAt", "").take(10)
+            val label = vName.ifBlank { vCode?.let { "Build $it" } ?: return null }
+            RemoteVersionCandidate(
+                versionLabel = label,
+                buildCode = vCode ?: extractBuildCode(label),
+                releaseNotes = notes,
+                downloadUrl = rawApkUrl,
+                publishedAt = publishedAt
+            )
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    internal fun parseBuildGradleVersion(content: String): Pair<String?, Int?> {
+        if (content.isBlank()) return null to null
+        var versionName: String? = null
+        var versionCode: Int? = null
+
+        val nameAssignRegex = Regex("""^\s*versionName\s*(?:=|\s)\s*(.+)$""")
+        val codeAssignRegex = Regex("""^\s*versionCode\s*(?:=|\s)\s*(.+)$""")
+        val quotedRegex = Regex("""["']([^"']+)["']""")
+        val intRegex = Regex("""\b(\d+)\b""")
+
+        for (rawLine in content.lineSequence()) {
+            val line = rawLine.substringBefore("//").trim()
+            if (line.isEmpty() || line.startsWith("/*") || line.startsWith("*")) continue
+
+            if (versionName == null) {
+                nameAssignRegex.find(line)?.let { m ->
+                    val rhs = m.groupValues[1]
+                    val targetSegment = if (rhs.contains("?:")) rhs.substringAfterLast("?:") else rhs
+                    val matches = quotedRegex.findAll(targetSegment).map { it.groupValues[1].trim() }.toList()
+                    val candidate = matches.lastOrNull {
+                        it.isNotBlank() &&
+                            !it.equals("APP_VERSION_NAME", ignoreCase = true) &&
+                            parseVersionNumbers(it).isNotEmpty()
+                    } ?: matches.lastOrNull { it.isNotBlank() && !it.equals("APP_VERSION_NAME", ignoreCase = true) }
+                    if (!candidate.isNullOrBlank()) {
+                        versionName = candidate
+                    }
+                }
+            }
+
+            if (versionCode == null) {
+                codeAssignRegex.find(line)?.let { m ->
+                    val rhs = m.groupValues[1]
+                    val targetSegment = if (rhs.contains("?:")) rhs.substringAfterLast("?:") else rhs
+                    val code = intRegex.findAll(targetSegment).lastOrNull()?.groupValues?.get(1)?.toIntOrNull()
+                    if (code != null && code > 0) {
+                        versionCode = code
+                    }
+                }
+            }
+        }
+        return versionName to versionCode
+    }
+
+    internal fun extractApkUrlsFromExpandedAssetsHtml(html: String): List<String> {
+        if (html.isBlank()) return emptyList()
+        return EXPANDED_ASSET_APK_REGEX.findAll(html)
+            .map { "https://github.com${it.groupValues[1]}" }
+            .filter { isTrustedUpdateUrl(it) }
+            .distinct()
+            .toList()
+    }
+
+    internal fun extractHighestTag(tags: Collection<String>): String? {
+        var bestTag: String? = null
+        var bestParts: List<Int> = emptyList()
+        var bestCode: Int = -1
+
+        for (rawTag in tags) {
+            val tag = rawTag.trim()
+            if (tag.isBlank()) continue
+            val parts = parseVersionNumbers(tag)
+            val code = extractBuildCode(tag) ?: -1
+            if (parts.isEmpty() && code <= 0) continue
+
+            if (bestTag == null) {
+                bestTag = tag
+                bestParts = parts
+                bestCode = code
+            } else {
+                val cmp = compareVersionParts(parts, bestParts)
+                if (cmp > 0 || (cmp == 0 && code > bestCode)) {
+                    bestTag = tag
+                    bestParts = parts
+                    bestCode = code
+                }
+            }
+        }
+        return bestTag
+    }
+
+    private fun selectBestCandidate(candidates: List<RemoteVersionCandidate>): RemoteVersionCandidate? {
+        var best: RemoteVersionCandidate? = null
+        for (c in candidates) {
+            val cParts = parseVersionNumbers(c.versionLabel)
+            val cCode = c.buildCode ?: -1
+            if (cParts.isEmpty() && cCode <= 0) continue
+
+            val curBest = best
+            if (curBest == null) {
+                best = c
+                continue
+            }
+            val bParts = parseVersionNumbers(curBest.versionLabel)
+            val bCode = curBest.buildCode ?: -1
+            val cmp = compareVersionParts(cParts, bParts)
+            when {
+                cmp > 0 -> best = c
+                cmp == 0 && cCode > bCode -> best = c
+                cmp == 0 && cCode == bCode -> {
+                    val preferNew = (!c.isPreRelease && curBest.isPreRelease) ||
+                        (c.isPreRelease == curBest.isPreRelease && c.downloadUrl != null && curBest.downloadUrl == null)
+                    if (preferNew) best = c
+                }
+            }
+        }
+        return best
+    }
+
+    private fun pickBestVersionLabel(vararg rawOptions: String): String? {
+        for (opt in rawOptions) {
+            val trimmed = opt.trim()
+            if (trimmed.isNotBlank() && parseVersionNumbers(trimmed).isNotEmpty()) {
+                return trimmed
+            }
+        }
+        return rawOptions.firstOrNull { it.isNotBlank() }?.trim()
+    }
+
+    private fun extractTagText(xml: String, tagName: String): String? {
+        val regex = Regex("""<$tagName(?:\s[^>]*)?>([\s\S]*?)</$tagName>""", RegexOption.IGNORE_CASE)
+        val raw = regex.find(xml)?.groupValues?.getOrNull(1) ?: return null
+        return unescapeXmlEntities(raw.removePrefix("<![CDATA[").removeSuffix("]]>")).trim()
+    }
+
+    private fun unescapeXmlEntities(text: String): String {
+        return text
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+    }
+
+    private fun encodePathSegment(segment: String): String {
+        return URLEncoder.encode(segment, "UTF-8").replace("+", "%20")
+    }
+
+    private fun resolveApkFromExpandedAssets(slug: String, tag: String): String? {
+        if (tag.isBlank()) return null
+        return try {
+            val encodedTag = encodePathSegment(tag)
+            val req = buildRequest("https://github.com/$slug/releases/expanded_assets/$encodedTag")
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return null
+                val html = resp.body?.string().orEmpty()
+                extractApkUrlsFromExpandedAssetsHtml(html).firstOrNull()
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 
     private fun extractApkAssetUrl(releaseJson: JSONObject): String? {
+        return extractApkAssetInfo(releaseJson)?.second
+    }
+
+    private fun extractApkAssetInfo(releaseJson: JSONObject): Pair<String, String>? {
         val assets = releaseJson.optJSONArray("assets") ?: return null
         for (i in 0 until assets.length()) {
             val asset = assets.optJSONObject(i) ?: continue
             val assetName = asset.optString("name", "")
             val browserUrl = asset.optString("browser_download_url", "")
             if (assetName.endsWith(".apk", ignoreCase = true) && isTrustedUpdateUrl(browserUrl)) {
-                return browserUrl
+                return assetName to browserUrl
             }
         }
         return null
@@ -244,39 +792,47 @@ object AppUpdateChecker {
      * Resolves a direct downloadable .apk binary URL from GitHub Releases or repo contents
      * so downloading happens strictly inside the app without ever opening a browser.
      */
-    private fun resolveApkUrlFromGithub(): String? {
-        // Try recent releases list
+    private fun resolveApkUrlFromGithub(preferredTag: String? = null): String? {
         for (slug in REPO_SLUGS) {
+            if (!preferredTag.isNullOrBlank()) {
+                resolveApkFromExpandedAssets(slug, preferredTag)?.let { return it }
+            }
+
+            // Try recent releases list
             try {
-                val req = Request.Builder()
-                    .url("https://api.github.com/repos/$slug/releases")
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "ShopyPulse-Android")
-                    .build()
+                val req = buildRequest(
+                    url = "https://api.github.com/repos/$slug/releases?per_page=10",
+                    accept = "application/vnd.github+json"
+                )
                 client.newCall(req).execute().use { resp ->
                     if (resp.isSuccessful) {
                         val body = resp.body?.string()
                         if (!body.isNullOrBlank() && body.trim().startsWith("[")) {
                             val arr = JSONArray(body)
+                            if (!preferredTag.isNullOrBlank()) {
+                                for (i in 0 until arr.length()) {
+                                    val rel = arr.optJSONObject(i) ?: continue
+                                    if (rel.optString("tag_name", "").equals(preferredTag, ignoreCase = true)) {
+                                        extractApkAssetUrl(rel)?.let { return it }
+                                    }
+                                }
+                            }
                             for (i in 0 until arr.length()) {
                                 val rel = arr.optJSONObject(i) ?: continue
-                                val apkUrl = extractApkAssetUrl(rel)
-                                if (!apkUrl.isNullOrBlank()) return apkUrl
+                                if (rel.optBoolean("draft", false)) continue
+                                extractApkAssetUrl(rel)?.let { return it }
                             }
                         }
                     }
                 }
             } catch (_: Exception) {}
-        }
 
-        // Try root repository contents for any committed .apk binary
-        for (slug in REPO_SLUGS) {
+            // Try root repository contents for any committed .apk binary
             try {
-                val req = Request.Builder()
-                    .url("https://api.github.com/repos/$slug/contents")
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "ShopyPulse-Android")
-                    .build()
+                val req = buildRequest(
+                    url = "https://api.github.com/repos/$slug/contents",
+                    accept = "application/vnd.github+json"
+                )
                 client.newCall(req).execute().use { resp ->
                     if (resp.isSuccessful) {
                         val body = resp.body?.string()
@@ -294,38 +850,43 @@ object AppUpdateChecker {
                     }
                 }
             } catch (_: Exception) {}
+
+            resolveApkInfoFromRepoTree(slug)?.second?.let { return it }
         }
-        // Try repository tree (supports APKs in subfolders like release/ or dist/)
-        for (slug in REPO_SLUGS) {
-            try {
-                val req = Request.Builder()
-                    .url("https://api.github.com/repos/$slug/git/trees/HEAD?recursive=1")
-                    .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "ShopyPulse-Android")
-                    .build()
-                client.newCall(req).execute().use { resp ->
-                    if (resp.isSuccessful) {
-                        val body = resp.body?.string()
-                        if (!body.isNullOrBlank()) {
-                            val obj = JSONObject(body)
-                            val tree = obj.optJSONArray("tree") ?: return@use
-                            for (i in 0 until tree.length()) {
-                                val entry = tree.optJSONObject(i) ?: continue
-                                val type = entry.optString("type", "")
-                                val path = entry.optString("path", "")
-                                if (type == "blob" && path.endsWith(".apk", ignoreCase = true)) {
-                                    val candidate = "https://raw.githubusercontent.com/$slug/HEAD/$path"
-                                    if (isTrustedUpdateUrl(candidate)) {
-                                        return candidate
-                                    }
+        return null
+    }
+
+    private fun resolveApkInfoFromRepoTree(slug: String): Pair<String, String>? {
+        return try {
+            val req = buildRequest(
+                url = "https://api.github.com/repos/$slug/git/trees/HEAD?recursive=1",
+                accept = "application/vnd.github+json"
+            )
+            client.newCall(req).execute().use { resp ->
+                if (resp.isSuccessful) {
+                    val body = resp.body?.string()
+                    if (!body.isNullOrBlank()) {
+                        val obj = JSONObject(body)
+                        val tree = obj.optJSONArray("tree") ?: return null
+                        for (i in 0 until tree.length()) {
+                            val entry = tree.optJSONObject(i) ?: continue
+                            val type = entry.optString("type", "")
+                            val path = entry.optString("path", "")
+                            if (type == "blob" && path.endsWith(".apk", ignoreCase = true)) {
+                                val candidate = "https://raw.githubusercontent.com/$slug/HEAD/$path"
+                                if (isTrustedUpdateUrl(candidate)) {
+                                    val name = path.substringAfterLast("/")
+                                    return name to candidate
                                 }
                             }
                         }
                     }
                 }
-            } catch (_: Exception) {}
+                null
+            }
+        } catch (_: Exception) {
+            null
         }
-        return null
     }
 
     /**
@@ -359,21 +920,22 @@ object AppUpdateChecker {
                 return@flow
             }
 
-            // If URL is the repository homepage or not yet a direct binary link, resolve the real APK asset inside the app
-            val isHomepageUrl = downloadUrl.equals(UPDATE_URL, ignoreCase = true) ||
-                downloadUrl.equals("$UPDATE_URL/", ignoreCase = true)
-            val effectiveUrl = if (isHomepageUrl) {
-                resolveApkUrlFromGithub()
+            // If URL is a repository/tag web page rather than a direct .apk download, resolve the real APK asset
+            val looksLikeDirectApk = downloadUrl.substringBefore("?").endsWith(".apk", ignoreCase = true) ||
+                downloadUrl.contains("/releases/download/", ignoreCase = true)
+            val effectiveUrl = if (!looksLikeDirectApk) {
+                resolveApkUrlFromGithub(preferredTag = versionLabel)
             } else {
                 downloadUrl
             }
 
             if (effectiveUrl.isNullOrBlank()) {
+                val safePageFallback = if (isTrustedUpdateUrl(downloadUrl)) downloadUrl else UPDATE_URL
                 emit(
                     ApkDownloadState.Failed(
                         messageAr = "لم يتم العثور على ملف APK مباشر في مستودع التحديثات بعد.",
                         messageEn = "No direct APK file was found in the update repository yet.",
-                        fallbackUrl = UPDATE_URL
+                        fallbackUrl = safePageFallback
                     )
                 )
                 return@flow
@@ -648,30 +1210,67 @@ object AppUpdateChecker {
     }
 
     /**
-     * Compares semantic versions like "v1.2.0" vs "1.0" or "1.0.5" vs "1.0.4".
+     * Compares semantic versions like "v1.2.0" vs "1.0", "Shopy-v1.1" vs "1.0",
+     * or optional build numbers when version names match.
      */
-    fun isNewerVersion(remote: String, current: String): Boolean {
+    @JvmOverloads
+    fun isNewerVersion(
+        remote: String,
+        current: String,
+        remoteBuildCode: Int? = null,
+        currentBuildCode: Int? = null
+    ): Boolean {
         val remoteParts = parseVersionNumbers(remote)
         val currentParts = parseVersionNumbers(current)
-        if (remoteParts.isEmpty()) return false
 
-        val maxLen = maxOf(remoteParts.size, currentParts.size)
-        for (i in 0 until maxLen) {
-            val r = remoteParts.getOrElse(i) { 0 }
-            val c = currentParts.getOrElse(i) { 0 }
-            if (r > c) return true
-            if (r < c) return false
+        if (remoteParts.isNotEmpty() && currentParts.isNotEmpty()) {
+            val cmp = compareVersionParts(remoteParts, currentParts)
+            if (cmp > 0) return true
+            if (cmp < 0) return false
+        } else if (remoteParts.isNotEmpty()) {
+            return true
         }
+
+        val rCode = remoteBuildCode ?: extractBuildCode(remote)
+        val cCode = currentBuildCode ?: extractBuildCode(current)
+        if (rCode != null && cCode != null && rCode > cCode) {
+            return true
+        }
+
         return false
     }
 
-    private fun parseVersionNumbers(version: String): List<Int> {
-        val cleaned = version.trim()
-            .removePrefix("v")
-            .removePrefix("V")
-            .substringBefore("-")
-            .substringBefore(" ")
-        return cleaned.split(".")
-            .mapNotNull { part -> part.filter { it.isDigit() }.toIntOrNull() }
+    internal fun compareVersionParts(a: List<Int>, b: List<Int>): Int {
+        if (a.isEmpty() && b.isEmpty()) return 0
+        val maxLen = maxOf(a.size, b.size)
+        for (i in 0 until maxLen) {
+            val av = a.getOrElse(i) { 0 }
+            val bv = b.getOrElse(i) { 0 }
+            if (av != bv) return av.compareTo(bv)
+        }
+        return 0
+    }
+
+    internal fun extractBuildCode(version: String): Int? {
+        return BUILD_CODE_REGEX.find(version)?.groupValues?.getOrNull(1)?.toIntOrNull()
+    }
+
+    internal fun parseVersionNumbers(version: String): List<Int> {
+        val trimmed = version.trim()
+        if (trimmed.isEmpty()) return emptyList()
+
+        val dottedMatch = DOTTED_VERSION_REGEX.find(trimmed)
+        if (dottedMatch != null) {
+            return dottedMatch.value.split(".").mapNotNull { it.toIntOrNull() }
+        }
+
+        val singleMatch = SINGLE_V_VERSION_REGEX.find(trimmed)
+        if (singleMatch != null) {
+            val digitToken = singleMatch.groupValues[1].ifBlank { singleMatch.groupValues.getOrNull(2).orEmpty() }
+            val num = digitToken.toIntOrNull()
+            if (num != null) return listOf(num)
+        }
+
+        return emptyList()
     }
 }

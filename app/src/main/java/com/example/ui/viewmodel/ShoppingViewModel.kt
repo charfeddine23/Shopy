@@ -307,7 +307,7 @@ class ShoppingViewModel(
         checkForUpdates(autoOpenOverlay = true)
     }
 
-    fun checkForUpdates(autoOpenOverlay: Boolean = true) {
+    fun checkForUpdates(autoOpenOverlay: Boolean = true, userInitiated: Boolean = false) {
         if (_updateStatus.value is AppUpdateStatus.Checking) return
         lastAutoCheckAtMs = System.currentTimeMillis()
         _updateStatus.value = AppUpdateStatus.Checking
@@ -315,16 +315,36 @@ class ShoppingViewModel(
             _apkDownloadState.value = ApkDownloadState.Idle
         }
         viewModelScope.launch {
-            val result = AppUpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)
+            val result = AppUpdateChecker.checkForUpdate(
+                currentVersionName = BuildConfig.VERSION_NAME,
+                currentVersionCode = BuildConfig.VERSION_CODE
+            )
             _updateStatus.value = result
             val now = System.currentTimeMillis()
             _lastUpdateCheckTimestamp.value = now
             preferencesStorage.setLastUpdateCheckTimestamp(now)
-            if (result is AppUpdateStatus.UpdateAvailable) {
-                preferencesStorage.setLatestKnownVersion(result.latestVersion)
-                if (autoOpenOverlay) {
-                    _showUpdateOverlay.value = true
+            when (result) {
+                is AppUpdateStatus.UpdateAvailable -> {
+                    preferencesStorage.setLatestKnownVersion(result.latestVersion)
+                    if (autoOpenOverlay) {
+                        _showUpdateOverlay.value = true
+                    }
                 }
+                is AppUpdateStatus.UpToDate -> {
+                    if (userInitiated) {
+                        val isAr = _isArabic.value
+                        emitUserMessage(
+                            if (isAr) "التطبيق محدث إلى آخر نسخة (${result.currentVersion})"
+                            else "App is up to date (${result.currentVersion})"
+                        )
+                    }
+                }
+                is AppUpdateStatus.Error -> {
+                    if (userInitiated) {
+                        emitUserMessage(if (_isArabic.value) result.messageAr else result.messageEn)
+                    }
+                }
+                else -> {}
             }
         }
     }

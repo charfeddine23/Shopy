@@ -357,7 +357,7 @@ fun SettingsScreen(
                                 viewModel.openUpdateOverlayIfAvailable()
                             }
                             else -> {
-                                viewModel.checkForUpdates(autoOpenOverlay = true)
+                                viewModel.checkForUpdates(autoOpenOverlay = true, userInitiated = true)
                             }
                         }
                     }
@@ -1403,19 +1403,35 @@ private fun AppUpdateSection(
         } else {
             "Update Ready to Install"
         }
-        else -> when {
-            isChecking && isArabic -> "جاري التحقق..."
-            isChecking -> "Checking..."
-            hasUpdate && isArabic -> "تحديث جديد متاح ($cleanVersion)"
-            hasUpdate -> "New Update Available ($cleanVersion)"
-            isArabic -> "التطبيق محدث الى اخر نسخة"
-            else -> "App is up to date"
+        else -> when (updateStatus) {
+            is AppUpdateStatus.Checking -> if (isArabic) "جاري التحقق..." else "Checking..."
+            is AppUpdateStatus.UpdateAvailable -> if (isArabic) {
+                "تحديث جديد متاح ($cleanVersion)"
+            } else {
+                "New Update Available ($cleanVersion)"
+            }
+            is AppUpdateStatus.Error -> if (isArabic) {
+                "تعذر التحقق من التحديث • اضغط للمحاولة"
+            } else {
+                "Update check failed • Tap to retry"
+            }
+            is AppUpdateStatus.Idle -> if (isArabic) {
+                "التحقق من وجود تحديثات"
+            } else {
+                "Check for Updates"
+            }
+            else -> if (isArabic) {
+                "التطبيق محدث الى اخر نسخة"
+            } else {
+                "App is up to date"
+            }
         }
     }
 
     val accentColor = when {
         isChecking -> ElectricCyan
-        hasUpdate -> NeonAmber
+        hasUpdate || updateStatus is AppUpdateStatus.Error -> NeonAmber
+        updateStatus is AppUpdateStatus.Idle -> ElectricCyan
         else -> EmeraldSavings
     }
 
