@@ -111,6 +111,7 @@ import com.example.ui.components.WindGlowAppNameBanner
 import com.example.ui.components.disableParentPagerSwipe
 import com.example.ui.components.horizontalFadingEdge
 import com.example.ui.components.singleFingerPullUpToAdd
+import com.example.ui.components.tutorialTarget
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CheckedGreen
 import com.example.ui.theme.CyanTintBg
@@ -264,6 +265,7 @@ fun HomeScreen(
                         // Compact glowing Add button in place of the removed green FAB
                         Box(
                             modifier = Modifier
+                                .tutorialTarget("add_item_action_button")
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(if (isLight) CyanTintBg else ElectricCyan.copy(alpha = 0.16f))
                                 .border(
@@ -472,6 +474,7 @@ private fun HomeHeader(
                 // Cart / Supermarket Mode Button
                 Box(
                     modifier = Modifier
+                        .tutorialTarget("supermarket_mode_header_pill")
                         .clip(RoundedCornerShape(18.dp))
                         .background(shopPillBg)
                         .border(BorderStroke(1.dp, shopPillBorder), RoundedCornerShape(18.dp))
@@ -987,6 +990,7 @@ private fun EmptyListCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
+            .tutorialTarget("empty_shopping_list_card")
             .singleFingerPullUpToAdd(
                 enabled = true,
                 onStateChanged = { pullState = it },

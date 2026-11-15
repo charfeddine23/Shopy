@@ -62,6 +62,7 @@ import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.NeonBadge
 import com.example.ui.components.SwipeToDeleteContainer
+import com.example.ui.components.tutorialTarget
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CheckedGreen
 import com.example.ui.theme.CyanTintBg
@@ -141,6 +142,7 @@ fun SupermarketModeScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .tutorialTarget("supermarket_budget_hud")
                         .testTag("supermarket_budget_hud"),
                     glowColor = progressColor
                 ) {

@@ -104,11 +104,15 @@ import com.example.ui.components.AppUpdateOverlay
 import com.example.ui.components.FluidWaterState
 import com.example.ui.components.LiquidGlassBackground
 import com.example.ui.components.LocalPagerSwipeBlockController
+import com.example.ui.components.LocalTutorialTargetRegistry
 import com.example.ui.components.QrShareDialog
+import com.example.ui.components.TutorialScreenTarget
+import com.example.ui.components.TutorialTargetRegistry
 import com.example.ui.components.fluidWaterDistortion
 import com.example.ui.components.fluidWaterTouchPhysics
 import com.example.ui.components.rememberFluidWaterState
 import com.example.ui.components.rememberPagerSwipeBlockController
+import com.example.ui.components.tutorialTarget
 import com.example.ui.components.twoFingerFullScreenSwipe
 import com.example.util.AppUpdateStatus
 import com.example.ui.screens.HomeScreen
@@ -330,6 +334,19 @@ fun ShopyPulseApp(
     val showUpdateOverlay by viewModel.showUpdateOverlay.collectAsStateWithLifecycle()
     val apkDownloadState by viewModel.apkDownloadState.collectAsStateWithLifecycle()
     val showTutorialOverlay by viewModel.showTutorialOverlay.collectAsStateWithLifecycle()
+    val seenTutorialStepIds by viewModel.seenTutorialStepIds.collectAsStateWithLifecycle()
+    val tutorialTargetRegistry = remember { TutorialTargetRegistry() }
+    var tutorialFocusScreen by remember { mutableStateOf<Screen?>(null) }
+    LaunchedEffect(showTutorialOverlay) {
+        if (!showTutorialOverlay) {
+            tutorialFocusScreen = null
+        }
+    }
+    val effectiveScreen = if (showTutorialOverlay && tutorialFocusScreen != null) {
+        tutorialFocusScreen!!
+    } else {
+        currentScreen
+    }
     var lastAutoInstallPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(apkDownloadState) {
@@ -386,9 +403,9 @@ fun ShopyPulseApp(
             }
     }
 
-    // Animate pager smoothly with spring physics whenever a primary screen is selected from dock or back button
-    LaunchedEffect(currentScreen) {
-        val targetIndex = pagerScreens.indexOf(currentScreen)
+    // Animate pager smoothly with spring physics whenever a primary screen or tutorial target screen is active
+    LaunchedEffect(effectiveScreen) {
+        val targetIndex = pagerScreens.indexOf(effectiveScreen)
         if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
             pagerState.animateScrollToPage(
                 page = targetIndex,
@@ -405,6 +422,7 @@ fun ShopyPulseApp(
         viewModel.setCurrentScreen(Screen.HOME.name)
     }
 
+    CompositionLocalProvider(LocalTutorialTargetRegistry provides tutorialTargetRegistry) {
     LiquidGlassBackground(isDarkMode = isDarkMode) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -420,10 +438,10 @@ fun ShopyPulseApp(
                 }
             },
             bottomBar = {
-                if (currentScreen != Screen.SUPERMARKET) {
-                    val activeDockScreen = pagerScreens.getOrNull(pagerState.currentPage) ?: currentScreen
+                if (effectiveScreen != Screen.SUPERMARKET) {
+                    val activeDockScreen = pagerScreens.getOrNull(pagerState.currentPage) ?: effectiveScreen
                     LiquidGlassBottomNavBar(
-                        currentScreen = if (currentScreen in pagerScreens) activeDockScreen else currentScreen,
+                        currentScreen = if (effectiveScreen in pagerScreens) activeDockScreen else effectiveScreen,
                         isArabic = isArabic,
                         isDarkMode = isDarkMode,
                         waterState = dockWaterState,
@@ -478,7 +496,7 @@ fun ShopyPulseApp(
             CompositionLocalProvider(
                 LocalPagerSwipeBlockController provides pagerSwipeBlockController
             ) {
-                val showMainPager = currentScreen != Screen.SUPERMARKET && currentScreen != Screen.STATISTICS
+                val showMainPager = effectiveScreen != Screen.SUPERMARKET && effectiveScreen != Screen.STATISTICS
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -527,7 +545,7 @@ fun ShopyPulseApp(
 
                     // Dedicated secondary screens (Supermarket Cart Mode & Statistics) with zero overlap over Home
                     AnimatedVisibility(
-                        visible = currentScreen == Screen.SUPERMARKET,
+                        visible = effectiveScreen == Screen.SUPERMARKET,
                         enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f, animationSpec = tween(200)),
                         exit = ExitTransition.None
                     ) {
@@ -538,7 +556,7 @@ fun ShopyPulseApp(
                     }
 
                     AnimatedVisibility(
-                        visible = currentScreen == Screen.STATISTICS,
+                        visible = effectiveScreen == Screen.STATISTICS,
                         enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f, animationSpec = tween(200)),
                         exit = ExitTransition.None
                     ) {
@@ -589,18 +607,32 @@ fun ShopyPulseApp(
             }
         }
 
-        // Luxury Interactive App Tutorial Overlay
+        // Luxury Live In-App Spotlight Coachmark Tutorial
         AnimatedVisibility(
             visible = showTutorialOverlay && !(showUpdateOverlay && availableUpdate != null),
-            enter = fadeIn(tween(240)) + scaleIn(initialScale = 0.95f, animationSpec = tween(240)),
+            enter = fadeIn(tween(240)),
             exit = fadeOut(tween(180))
         ) {
             AppTutorialOverlay(
                 isArabic = isArabic,
                 isDarkMode = isDarkMode,
-                onClose = { viewModel.completeTutorial() }
+                seenStepIds = seenTutorialStepIds,
+                onFocusScreen = { target ->
+                    tutorialFocusScreen = when (target) {
+                        TutorialScreenTarget.HOME -> Screen.HOME
+                        TutorialScreenTarget.PRICES -> Screen.PRICES
+                        TutorialScreenTarget.SUPERMARKET -> Screen.SUPERMARKET
+                        TutorialScreenTarget.STATISTICS -> Screen.STATISTICS
+                        TutorialScreenTarget.SETTINGS -> Screen.SETTINGS
+                    }
+                },
+                onClose = {
+                    tutorialFocusScreen = null
+                    viewModel.completeTutorial()
+                }
             )
         }
+    }
     }
 }
 
@@ -646,6 +678,7 @@ fun LiquidGlassBottomNavBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .tutorialTarget("dock_nav")
                 .then(
                     if (!isDarkMode) {
                         Modifier.shadow(
@@ -727,7 +760,8 @@ fun LiquidGlassBottomNavBar(
                     accentColor = homeAccent,
                     unselectedColor = unselectedTint,
                     onClick = { onSelectScreen(Screen.HOME) },
-                    testTag = "nav_home"
+                    testTag = "nav_home",
+                    tutorialKey = "dock_tab_HOME"
                 )
 
                 // 2. Products & Price Comparison Tab
@@ -738,7 +772,8 @@ fun LiquidGlassBottomNavBar(
                     accentColor = pricesAccent,
                     unselectedColor = unselectedTint,
                     onClick = { onSelectScreen(Screen.PRICES) },
-                    testTag = "nav_products"
+                    testTag = "nav_products",
+                    tutorialKey = "dock_tab_PRICES"
                 )
 
                 // 3. Settings Tab ("الإعدادات" on one single line in a stationary fixed position)
@@ -749,7 +784,8 @@ fun LiquidGlassBottomNavBar(
                     accentColor = settingsAccent,
                     unselectedColor = unselectedTint,
                     onClick = { onSelectScreen(Screen.SETTINGS) },
-                    testTag = "nav_settings"
+                    testTag = "nav_settings",
+                    tutorialKey = "dock_tab_SETTINGS"
                 )
             }
         }
@@ -764,13 +800,15 @@ private fun RowScope.NavItem(
     accentColor: Color,
     unselectedColor: Color,
     onClick: () -> Unit,
-    testTag: String
+    testTag: String,
+    tutorialKey: String
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Box(
         modifier = Modifier
             .weight(1f)
+            .tutorialTarget(tutorialKey)
             .clip(RoundedCornerShape(20.dp))
             .clickable(
                 interactionSource = interactionSource,

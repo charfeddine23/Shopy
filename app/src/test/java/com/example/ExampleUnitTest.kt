@@ -1,6 +1,7 @@
 package com.example
 
 import com.example.data.local.DatabaseInitialData
+import com.example.data.local.InMemoryPreferencesStorage
 import com.example.data.local.MarketPriceDao
 import com.example.data.local.ShoppingDao
 import com.example.data.local.SpendingDao
@@ -9,9 +10,14 @@ import com.example.data.model.PriceHistory
 import com.example.data.model.ShoppingItem
 import com.example.data.model.SpendingRecord
 import com.example.data.repository.ShoppingRepository
+import com.example.ui.components.AppTutorialRegistry
 import com.example.ui.components.SingleFingerPullUpDetector
+import com.example.ui.components.TutorialFeatureStep
+import com.example.ui.components.TutorialGestureType
+import com.example.ui.components.TutorialScreenTarget
 import com.example.ui.components.TwoFingerSwipeDetector
 import com.example.ui.components.TwoFingerSwipeDirection
+import com.example.ui.theme.ElectricCyan
 import com.example.ui.viewmodel.ShoppingViewModel
 import com.example.util.AppUpdateChecker
 import com.example.util.LocalizationUtil
@@ -23,6 +29,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -205,24 +212,75 @@ class ExampleUnitTest {
     }
 
     @Test
-    fun testTutorialStateAndCompletion() {
+    fun testTutorialStateAndCompletion() = runBlocking {
+        // Verify removed basket-comparison tutorial window is completely gone
+        val steps = AppTutorialRegistry.steps
+        assertTrue(steps.isNotEmpty())
+        assertFalse(steps.any {
+            it.id == "price_comparison" ||
+                it.titleAr.contains("اكتشف أرخص متجر لسلت") ||
+                it.titleEn.contains("Lowest Basket Price", ignoreCase = true)
+        })
+
+        // Verify signature adapts automatically when app version changes OR when a new feature step is added
+        val sigV1 = AppTutorialRegistry.computeSignature("v1.0 Build 1", steps)
+        val sigV2 = AppTutorialRegistry.computeSignature("v1.1 Build 2", steps)
+        val extraStep = TutorialFeatureStep(
+            id = "ai_scanner",
+            targetScreen = TutorialScreenTarget.HOME,
+            targetKeys = listOf("dock_nav"),
+            gestureType = TutorialGestureType.FEATURE_SPOTLIGHT_PULSE,
+            badgeAr = "جديد",
+            badgeEn = "NEW",
+            titleAr = "ميزة جديدة",
+            titleEn = "New Feature",
+            descriptionAr = "وصف",
+            descriptionEn = "Desc",
+            tipAr = "تلميح",
+            tipEn = "Tip",
+            accentColor = ElectricCyan
+        )
+        val sigNewFeature = AppTutorialRegistry.computeSignature("v1.0 Build 1", steps + extraStep)
+        assertNotEquals(sigV1, sigV2)
+        assertNotEquals(sigV1, sigNewFeature)
+
         val repo = ShoppingRepository(
             shoppingDao = FakeShoppingDao(mutableListOf()),
             marketPriceDao = FakeMarketPriceDao(),
             spendingDao = FakeSpendingDao()
         )
-        val vm = ShoppingViewModel(repo)
-        assertFalse(vm.hasSeenTutorial.value)
-        assertTrue(vm.showTutorialOverlay.value)
+        val storage = InMemoryPreferencesStorage()
 
-        vm.completeTutorial()
-        assertTrue(vm.hasSeenTutorial.value)
-        assertFalse(vm.showTutorialOverlay.value)
+        // Launch 1 on v1 -> shows once
+        val vmV1First = ShoppingViewModel(repo, storage, tutorialSignature = sigV1)
+        assertFalse(vmV1First.hasSeenTutorial.value)
+        assertTrue(vmV1First.showTutorialOverlay.value)
 
-        vm.openTutorial()
-        assertTrue(vm.showTutorialOverlay.value)
-        vm.completeTutorial()
-        assertFalse(vm.showTutorialOverlay.value)
+        vmV1First.completeTutorial()
+        assertTrue(vmV1First.hasSeenTutorial.value)
+        assertFalse(vmV1First.showTutorialOverlay.value)
+        assertEquals(steps.map { it.id }.toSet(), vmV1First.seenTutorialStepIds.value)
+
+        // Wait briefly for ViewModel coroutine to persist into storage
+        kotlinx.coroutines.delay(50)
+
+        // Launch 2 on same version & features -> stays hidden automatically
+        val vmV1Second = ShoppingViewModel(repo, storage, tutorialSignature = sigV1)
+        assertTrue(vmV1Second.hasSeenTutorial.value)
+        assertFalse(vmV1Second.showTutorialOverlay.value)
+
+        // Manual replay from Settings still works
+        vmV1Second.openTutorial()
+        assertTrue(vmV1Second.showTutorialOverlay.value)
+        vmV1Second.completeTutorial()
+        assertFalse(vmV1Second.showTutorialOverlay.value)
+
+        // Simulate app update OR newly added feature -> tutorial appears ONCE automatically again
+        val vmUpdated = ShoppingViewModel(repo, storage, tutorialSignature = sigNewFeature)
+        assertTrue(vmUpdated.showTutorialOverlay.value)
+        assertEquals(steps.map { it.id }.toSet(), vmUpdated.seenTutorialStepIds.value)
+        vmUpdated.completeTutorial()
+        assertFalse(vmUpdated.showTutorialOverlay.value)
     }
 
     @Test
