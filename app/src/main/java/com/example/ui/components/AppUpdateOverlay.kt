@@ -104,7 +104,7 @@ fun AppUpdateOverlay(
     BackHandler(onBack = onDismiss)
 
     val layoutDir = if (isArabic) LayoutDirection.Rtl else LayoutDirection.Ltr
-    val cardShape = RoundedCornerShape(28.dp)
+    val cardShape = LiquidWindowShape
 
     // Dimmed Scrim Backdrop centering the compact luxury card
     Box(
@@ -118,7 +118,7 @@ fun AppUpdateOverlay(
             )
             .statusBarsPadding()
             .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 20.dp)
+            .padding(horizontal = 20.dp, vertical = 20.dp)
             .testTag("app_update_overlay"),
         contentAlignment = Alignment.Center
     ) {
@@ -126,7 +126,7 @@ fun AppUpdateOverlay(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 340.dp)
+                .widthIn(max = 360.dp)
                 .wrapContentHeight()
                 .shadow(
                     elevation = 24.dp,

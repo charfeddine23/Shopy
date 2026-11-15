@@ -103,7 +103,10 @@ import com.example.data.model.MarketPrice
 import com.example.data.model.StoreBasketSummary
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
+import com.example.ui.components.LiquidSheetShape
 import com.example.ui.components.NeonBadge
+import com.example.ui.components.ShopyDialog
+import com.example.ui.components.liquidWindowContainerColor
 import com.example.ui.components.disableParentPagerSwipe
 import com.example.ui.components.horizontalFadingEdge
 import com.example.ui.theme.BackgroundLight
@@ -905,7 +908,7 @@ fun UpdateSettingsSheet(
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val sheetBg = if (isLight) Color.White else Color(0xFF0D1627)
+    val sheetBg = liquidWindowContainerColor(isLight)
 
     val dateFormat = remember(isArabic) {
         val locale = if (isArabic) Locale("ar") else Locale.ENGLISH
@@ -919,8 +922,8 @@ fun UpdateSettingsSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = sheetBg,
-        tonalElevation = 8.dp,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+        tonalElevation = 0.dp,
+        shape = LiquidSheetShape,
         dragHandle = {
             Box(
                 modifier = Modifier
@@ -1541,11 +1544,9 @@ private fun ReportPriceDialog(
     onSubmit: (storeName: String, storeNameAr: String, newPrice: Double) -> Unit
 ) {
     var priceText by remember { mutableStateOf(priceItem.priceDzd.toInt().toString()) }
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-
-    AlertDialog(
+    ShopyDialog(
         onDismissRequest = onDismiss,
-        containerColor = if (isLight) Color.White else Color(0xFF131C2E),
+        accentColor = EmeraldSavings,
         title = {
             Text(
                 text = if (isArabic) "تعديل سعر المنتج بالتجزئة" else "Edit Consumer Retail Price",
@@ -1643,9 +1644,9 @@ private fun AddProductOrGroupDialog(
 
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
 
-    AlertDialog(
+    ShopyDialog(
         onDismissRequest = onDismiss,
-        containerColor = if (isLight) Color.White else Color(0xFF131D31),
+        accentColor = ElectricCyan,
         title = {
             Column {
                 Text(

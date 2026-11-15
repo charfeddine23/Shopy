@@ -104,12 +104,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ShoppingItem
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
+import com.example.ui.components.LiquidSheetShape
+import com.example.ui.components.LocalTutorialInteractionBus
 import com.example.ui.components.NeonBadge
 import com.example.ui.components.PullUpGestureState
+import com.example.ui.components.ShopyDialog
 import com.example.ui.components.SwipeToDeleteContainer
+import com.example.ui.components.TutorialRequiredAction
 import com.example.ui.components.WindGlowAppNameBanner
 import com.example.ui.components.disableParentPagerSwipe
 import com.example.ui.components.horizontalFadingEdge
+import com.example.ui.components.liquidWindowContainerColor
 import com.example.ui.components.singleFingerPullUpToAdd
 import com.example.ui.components.tutorialTarget
 import com.example.ui.theme.BackgroundLight
@@ -161,6 +166,8 @@ fun HomeScreen(
     var showFinishTripDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
+    val tutorialBus = LocalTutorialInteractionBus.current
+    val isExpectingPullUpAction = tutorialBus?.isExpecting(TutorialRequiredAction.PULL_UP_ADD_ITEM) == true
 
     val filteredItems by remember(items, selectedCategory) {
         derivedStateOf {
@@ -272,7 +279,13 @@ fun HomeScreen(
                                     BorderStroke(1.dp, if (isLight) CyanTintBorder else ElectricCyan.copy(alpha = 0.5f)),
                                     RoundedCornerShape(10.dp)
                                 )
-                                .clickable { showAddDialog = true }
+                                .clickable {
+                                    if (isExpectingPullUpAction) {
+                                        tutorialBus?.reportAction(TutorialRequiredAction.PULL_UP_ADD_ITEM)
+                                    } else {
+                                        showAddDialog = true
+                                    }
+                                }
                                 .padding(horizontal = 10.dp, vertical = 5.dp)
                                 .testTag("add_item_action_button"),
                             contentAlignment = Alignment.Center
@@ -300,7 +313,22 @@ fun HomeScreen(
             // Shopping Items List
             if (filteredItems.isEmpty()) {
                 item {
-                    EmptyListCard(isArabic = isArabic, onAddItem = { showAddDialog = true })
+                    EmptyListCard(
+                        isArabic = isArabic,
+                        isTutorialActive = isExpectingPullUpAction,
+                        onAddItem = {
+                            if (isExpectingPullUpAction) {
+                                tutorialBus?.reportAction(TutorialRequiredAction.PULL_UP_ADD_ITEM)
+                            } else {
+                                showAddDialog = true
+                            }
+                        },
+                        onTapDuringTutorial = {
+                            viewModel.emitUserMessage(
+                                if (isArabic) "اسحب البطاقة للأعلى بإصبعك لتنفيذ الشرح!" else "Pull the card upward with one finger to complete this step!"
+                            )
+                        }
+                    )
                 }
             } else {
                 items(
@@ -335,7 +363,8 @@ fun HomeScreen(
         ModalBottomSheet(
             onDismissRequest = { showAddDialog = false },
             sheetState = sheetState,
-            containerColor = if (isLight) Color.White else Color(0xFF101726),
+            shape = LiquidSheetShape,
+            containerColor = liquidWindowContainerColor(isLight),
             dragHandle = {
                 Box(
                     modifier = Modifier
@@ -374,9 +403,9 @@ fun HomeScreen(
             var selectedStoreIndex by remember { mutableStateOf(0) }
             val isLight = MaterialTheme.colorScheme.background == BackgroundLight
 
-            AlertDialog(
+            ShopyDialog(
                 onDismissRequest = { showFinishTripDialog = false },
-                containerColor = if (isLight) Color.White else Color(0xFF131D2E),
+                accentColor = EmeraldSavings,
                 title = {
                     Text(
                         text = if (isArabic) "إنهاء التسوق ونقل المجموع للإنفاق" else "Finish Shopping Trip",
@@ -962,7 +991,9 @@ fun ShoppingItemRow(
 @Composable
 private fun EmptyListCard(
     isArabic: Boolean,
-    onAddItem: () -> Unit
+    isTutorialActive: Boolean = false,
+    onAddItem: () -> Unit,
+    onTapDuringTutorial: () -> Unit = {}
 ) {
     val haptic = LocalHapticFeedback.current
     var pullState by remember { mutableStateOf(PullUpGestureState()) }
@@ -1061,7 +1092,13 @@ private fun EmptyListCard(
                     else -> "Pull up to add items"
                 },
                 icon = Icons.Default.KeyboardArrowUp,
-                onClick = onAddItem,
+                onClick = {
+                    if (isTutorialActive) {
+                        onTapDuringTutorial()
+                    } else {
+                        onAddItem()
+                    }
+                },
                 color = if (pullState.isThresholdReached) EmeraldSavings else ElectricCyan,
                 modifier = Modifier.testTag("pull_up_add_items_button")
             )

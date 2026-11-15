@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -102,15 +103,17 @@ fun QrShareDialog(
         }
     }
 
-    val dialogBg = if (isLight) Color(0xFFFFFFFF) else Color(0xFF131D2E)
-    val dialogBorder = if (isLight) LightCardBorder else GlassBorder
+    val dialogBg = liquidWindowContainerColor(isLight)
+    val dialogBorder = liquidWindowBorder(isLight, EmeraldSavings)
 
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = dialogBg,
-        shape = RoundedCornerShape(22.dp),
+        tonalElevation = 0.dp,
+        shape = LiquidWindowShape,
         modifier = Modifier
-            .border(BorderStroke(1.dp, dialogBorder), RoundedCornerShape(22.dp))
+            .widthIn(max = 400.dp)
+            .border(dialogBorder, LiquidWindowShape)
             .testTag("qr_share_dialog"),
         title = {
             Column(modifier = Modifier.fillMaxWidth()) {

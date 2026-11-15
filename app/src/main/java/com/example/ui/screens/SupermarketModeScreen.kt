@@ -60,8 +60,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ShoppingItem
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
+import com.example.ui.components.LocalTutorialInteractionBus
 import com.example.ui.components.NeonBadge
+import com.example.ui.components.ShopyDialog
 import com.example.ui.components.SwipeToDeleteContainer
+import com.example.ui.components.TutorialRequiredAction
 import com.example.ui.components.tutorialTarget
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CheckedGreen
@@ -91,6 +94,8 @@ fun SupermarketModeScreen(
     val isArabic by viewModel.isArabic.collectAsStateWithLifecycle()
     val budgetLimit by viewModel.budgetLimitDzd.collectAsStateWithLifecycle()
     val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background == BackgroundLight
+    val tutorialBus = LocalTutorialInteractionBus.current
+    val isExpectingBudgetInteraction = tutorialBus?.isExpecting(TutorialRequiredAction.INTERACT_BUDGET_HUD) == true
 
     var showEditBudgetDialog by remember { mutableStateOf(false) }
     var hideChecked by remember { mutableStateOf(false) }
@@ -144,7 +149,10 @@ fun SupermarketModeScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .tutorialTarget("supermarket_budget_hud")
                         .testTag("supermarket_budget_hud"),
-                    glowColor = progressColor
+                    glowColor = progressColor,
+                    onClick = if (isExpectingBudgetInteraction) {
+                        { tutorialBus?.reportAction(TutorialRequiredAction.INTERACT_BUDGET_HUD) }
+                    } else null
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(
@@ -180,7 +188,13 @@ fun SupermarketModeScreen(
 
                             // Edit budget button
                             IconButton(
-                                onClick = { showEditBudgetDialog = true },
+                                onClick = {
+                                    if (isExpectingBudgetInteraction) {
+                                        tutorialBus?.reportAction(TutorialRequiredAction.INTERACT_BUDGET_HUD)
+                                    } else {
+                                        showEditBudgetDialog = true
+                                    }
+                                },
                                 modifier = Modifier
                                     .clip(CircleShape)
                                     .background(Color(0x20FFFFFF))
@@ -311,9 +325,9 @@ fun SupermarketModeScreen(
     // Edit Budget Dialog
     if (showEditBudgetDialog) {
         var newBudgetText by remember { mutableStateOf(budgetLimit.toInt().toString()) }
-        AlertDialog(
+        ShopyDialog(
             onDismissRequest = { showEditBudgetDialog = false },
-            containerColor = if (isLight) Color.White else Color(0xFF131B2A),
+            accentColor = ElectricCyan,
             title = {
                 Text(
                     text = if (isArabic) "تحديد ميزانية التسوق" else "Set Shopping Budget",
@@ -356,9 +370,9 @@ fun SupermarketModeScreen(
 
     // Finish Shopping Summary Celebration Dialog
     if (showFinishDialog) {
-        AlertDialog(
+        ShopyDialog(
             onDismissRequest = { showFinishDialog = false },
-            containerColor = if (isLight) Color.White else Color(0xFF131B2A),
+            accentColor = EmeraldSavings,
             title = {
                 Text(
                     text = if (isArabic) "اكتملت جولة التسوق بنجاح!" else "Shopping Completed!",

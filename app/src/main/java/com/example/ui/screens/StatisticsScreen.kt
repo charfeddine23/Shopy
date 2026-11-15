@@ -70,6 +70,7 @@ import com.example.data.model.SpendingRecord
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.NeonBadge
+import com.example.ui.components.ShopyDialog
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CyanTintBg
 import com.example.ui.theme.CyanTintBorder
@@ -625,9 +626,9 @@ fun StatisticsScreen(
 
         // Confirm Delete Record Dialog
         recordToDelete?.let { rec ->
-            AlertDialog(
+            ShopyDialog(
                 onDismissRequest = { recordToDelete = null },
-                containerColor = if (isLight) Color.White else Color(0xFF131D2E),
+                accentColor = Color(0xFFEF4444),
                 title = {
                     Text(
                         text = if (isArabic) "حذف جولة التسوق" else "Delete Trip",
@@ -821,9 +822,9 @@ private fun ManualExpenseDialog(
     val activeStore = if (isArabic) storeNameAr else storeName
     val canSave = parsedAmount != null && parsedAmount > 0.0 && parsedAmount.isFinite() && activeStore.isNotBlank()
 
-    AlertDialog(
+    ShopyDialog(
         onDismissRequest = onDismiss,
-        containerColor = if (isLight) Color.White else Color(0xFF131D2E),
+        accentColor = EmeraldSavings,
         title = {
             Text(
                 text = if (isArabic) "تسجيل نفقة تسوق يدوية" else "Log Manual Expense",

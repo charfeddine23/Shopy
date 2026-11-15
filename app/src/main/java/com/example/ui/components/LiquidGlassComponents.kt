@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -373,3 +374,54 @@ fun GlowingActionButton(
         }
     }
 }
+
+val LiquidWindowShape: RoundedCornerShape = RoundedCornerShape(24.dp)
+val LiquidSheetShape: RoundedCornerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+
+fun liquidWindowContainerColor(isLight: Boolean): Color {
+    return if (isLight) Color(0xFFFFFFFF) else Color(0xFF111A2E)
+}
+
+fun liquidWindowBorder(isLight: Boolean, accentColor: Color = ElectricCyan): BorderStroke {
+    return if (isLight) {
+        BorderStroke(1.dp, LightCardBorder)
+    } else {
+        BorderStroke(
+            1.15.dp,
+            Brush.linearGradient(
+                colors = listOf(
+                    accentColor.copy(alpha = 0.58f),
+                    Color.White.copy(alpha = 0.16f),
+                    EmeraldSavings.copy(alpha = 0.34f)
+                )
+            )
+        )
+    }
+}
+
+@Composable
+fun ShopyDialog(
+    onDismissRequest: () -> Unit,
+    accentColor: Color = ElectricCyan,
+    modifier: Modifier = Modifier,
+    title: @Composable (() -> Unit)? = null,
+    text: @Composable (() -> Unit)? = null,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: @Composable (() -> Unit)? = null
+) {
+    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismissRequest,
+        confirmButton = confirmButton,
+        dismissButton = dismissButton,
+        title = title,
+        text = text,
+        shape = LiquidWindowShape,
+        containerColor = liquidWindowContainerColor(isLight),
+        tonalElevation = 0.dp,
+        modifier = modifier
+            .widthIn(max = 400.dp)
+            .border(liquidWindowBorder(isLight, accentColor), LiquidWindowShape)
+    )
+}
+

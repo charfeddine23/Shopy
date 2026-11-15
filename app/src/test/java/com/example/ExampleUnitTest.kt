@@ -14,6 +14,8 @@ import com.example.ui.components.AppTutorialRegistry
 import com.example.ui.components.SingleFingerPullUpDetector
 import com.example.ui.components.TutorialFeatureStep
 import com.example.ui.components.TutorialGestureType
+import com.example.ui.components.TutorialInteractionBus
+import com.example.ui.components.TutorialRequiredAction
 import com.example.ui.components.TutorialScreenTarget
 import com.example.ui.components.TwoFingerSwipeDetector
 import com.example.ui.components.TwoFingerSwipeDirection
@@ -230,12 +232,15 @@ class ExampleUnitTest {
             targetScreen = TutorialScreenTarget.HOME,
             targetKeys = listOf("dock_nav"),
             gestureType = TutorialGestureType.FEATURE_SPOTLIGHT_PULSE,
+            requiredAction = TutorialRequiredAction.TAP_TO_CONTINUE,
             badgeAr = "جديد",
             badgeEn = "NEW",
             titleAr = "ميزة جديدة",
             titleEn = "New Feature",
             descriptionAr = "وصف",
             descriptionEn = "Desc",
+            instructionAr = "نفذ الإجراء",
+            instructionEn = "Perform action",
             tipAr = "تلميح",
             tipEn = "Tip",
             accentColor = ElectricCyan
@@ -281,6 +286,37 @@ class ExampleUnitTest {
         assertEquals(steps.map { it.id }.toSet(), vmUpdated.seenTutorialStepIds.value)
         vmUpdated.completeTutorial()
         assertFalse(vmUpdated.showTutorialOverlay.value)
+    }
+
+    @Test
+    fun testTutorialInteractionBusAndMandatoryStepMetadata() {
+        val steps = AppTutorialRegistry.steps
+        steps.forEach { step ->
+            assertTrue("Step ${step.id} missing instructionAr", step.instructionAr.isNotBlank())
+            assertTrue("Step ${step.id} missing instructionEn", step.instructionEn.isNotBlank())
+            assertNotEquals(TutorialRequiredAction.TAP_TO_CONTINUE, step.requiredAction)
+        }
+
+        val bus = TutorialInteractionBus()
+        assertFalse(bus.isExpecting(TutorialRequiredAction.PULL_UP_ADD_ITEM))
+        assertFalse(bus.reportAction(TutorialRequiredAction.PULL_UP_ADD_ITEM))
+        assertEquals(0, bus.completedActionSequence)
+
+        bus.activeRequiredAction = TutorialRequiredAction.PULL_UP_ADD_ITEM
+        assertTrue(bus.isExpecting(TutorialRequiredAction.PULL_UP_ADD_ITEM))
+
+        // Unrelated action must be ignored while PULL_UP_ADD_ITEM is active
+        assertFalse(bus.reportAction(TutorialRequiredAction.SWITCH_DOCK_TAB))
+        assertEquals(0, bus.completedActionSequence)
+
+        // Matching action triggers completion and increments sequence
+        assertTrue(bus.reportAction(TutorialRequiredAction.PULL_UP_ADD_ITEM))
+        assertEquals(1, bus.completedActionSequence)
+        assertEquals(TutorialRequiredAction.PULL_UP_ADD_ITEM, bus.lastCompletedAction)
+
+        bus.clear()
+        assertEquals(null, bus.activeRequiredAction)
+        assertEquals(null, bus.lastCompletedAction)
     }
 
     @Test

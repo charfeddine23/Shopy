@@ -104,8 +104,11 @@ import com.example.ui.components.AppUpdateOverlay
 import com.example.ui.components.FluidWaterState
 import com.example.ui.components.LiquidGlassBackground
 import com.example.ui.components.LocalPagerSwipeBlockController
+import com.example.ui.components.LocalTutorialInteractionBus
 import com.example.ui.components.LocalTutorialTargetRegistry
 import com.example.ui.components.QrShareDialog
+import com.example.ui.components.TutorialInteractionBus
+import com.example.ui.components.TutorialRequiredAction
 import com.example.ui.components.TutorialScreenTarget
 import com.example.ui.components.TutorialTargetRegistry
 import com.example.ui.components.fluidWaterDistortion
@@ -334,12 +337,15 @@ fun ShopyPulseApp(
     val showUpdateOverlay by viewModel.showUpdateOverlay.collectAsStateWithLifecycle()
     val apkDownloadState by viewModel.apkDownloadState.collectAsStateWithLifecycle()
     val showTutorialOverlay by viewModel.showTutorialOverlay.collectAsStateWithLifecycle()
+    val hasSeenTutorial by viewModel.hasSeenTutorial.collectAsStateWithLifecycle()
     val seenTutorialStepIds by viewModel.seenTutorialStepIds.collectAsStateWithLifecycle()
     val tutorialTargetRegistry = remember { TutorialTargetRegistry() }
+    val tutorialInteractionBus = remember { TutorialInteractionBus() }
     var tutorialFocusScreen by remember { mutableStateOf<Screen?>(null) }
     LaunchedEffect(showTutorialOverlay) {
         if (!showTutorialOverlay) {
             tutorialFocusScreen = null
+            tutorialInteractionBus.clear()
         }
     }
     val effectiveScreen = if (showTutorialOverlay && tutorialFocusScreen != null) {
@@ -422,7 +428,10 @@ fun ShopyPulseApp(
         viewModel.setCurrentScreen(Screen.HOME.name)
     }
 
-    CompositionLocalProvider(LocalTutorialTargetRegistry provides tutorialTargetRegistry) {
+    CompositionLocalProvider(
+        LocalTutorialTargetRegistry provides tutorialTargetRegistry,
+        LocalTutorialInteractionBus provides tutorialInteractionBus
+    ) {
     LiquidGlassBackground(isDarkMode = isDarkMode) {
         Scaffold(
             containerColor = Color.Transparent,
@@ -447,17 +456,33 @@ fun ShopyPulseApp(
                         waterState = dockWaterState,
                         isFluidWaterEnabled = isFluidWaterEnabled,
                         onSelectScreen = { targetScreen ->
-                            viewModel.setCurrentScreen(targetScreen.name)
-                            val idx = pagerScreens.indexOf(targetScreen)
-                            if (idx >= 0) {
-                                coroutineScope.launch {
-                                    pagerState.animateScrollToPage(
-                                        page = idx,
-                                        animationSpec = spring(
-                                            dampingRatio = 0.86f,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    )
+                            when {
+                                tutorialInteractionBus.isExpecting(TutorialRequiredAction.SWITCH_DOCK_TAB) -> {
+                                    if (targetScreen != effectiveScreen) {
+                                        tutorialFocusScreen = targetScreen
+                                        tutorialInteractionBus.reportAction(TutorialRequiredAction.SWITCH_DOCK_TAB)
+                                    }
+                                }
+                                tutorialInteractionBus.isExpecting(TutorialRequiredAction.TAP_SETTINGS_TAB) -> {
+                                    if (targetScreen == Screen.SETTINGS) {
+                                        tutorialFocusScreen = Screen.SETTINGS
+                                        tutorialInteractionBus.reportAction(TutorialRequiredAction.TAP_SETTINGS_TAB)
+                                    }
+                                }
+                                !showTutorialOverlay -> {
+                                    viewModel.setCurrentScreen(targetScreen.name)
+                                    val idx = pagerScreens.indexOf(targetScreen)
+                                    if (idx >= 0) {
+                                        coroutineScope.launch {
+                                            pagerState.animateScrollToPage(
+                                                page = idx,
+                                                animationSpec = spring(
+                                                    dampingRatio = 0.86f,
+                                                    stiffness = Spring.StiffnessMediumLow
+                                                )
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -467,7 +492,8 @@ fun ShopyPulseApp(
             modifier = Modifier
                 .fillMaxSize()
                 .twoFingerFullScreenSwipe(
-                    enabled = isTwoFingerFullScreenSwipeEnabled,
+                    enabled = isTwoFingerFullScreenSwipeEnabled ||
+                        tutorialInteractionBus.isExpecting(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE),
                     onSwipeUp = {
                         if (!isFullScreen) {
                             try {
@@ -478,6 +504,7 @@ fun ShopyPulseApp(
                                 if (isArabic) "تم تفعيل وضع ملء الشاشة" else "Full Screen Enabled"
                             )
                         }
+                        tutorialInteractionBus.reportAction(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE)
                     },
                     onSwipeDown = {
                         if (isFullScreen) {
@@ -489,6 +516,7 @@ fun ShopyPulseApp(
                                 if (isArabic) "تم إيقاف وضع ملء الشاشة" else "Full Screen Disabled"
                             )
                         }
+                        tutorialInteractionBus.reportAction(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE)
                     }
                 )
                 .padding(top = preservedTopPaddingDp)
@@ -616,6 +644,7 @@ fun ShopyPulseApp(
             AppTutorialOverlay(
                 isArabic = isArabic,
                 isDarkMode = isDarkMode,
+                isReplayMode = hasSeenTutorial,
                 seenStepIds = seenTutorialStepIds,
                 onFocusScreen = { target ->
                     tutorialFocusScreen = when (target) {
@@ -628,6 +657,7 @@ fun ShopyPulseApp(
                 },
                 onClose = {
                     tutorialFocusScreen = null
+                    tutorialInteractionBus.clear()
                     viewModel.completeTutorial()
                 }
             )

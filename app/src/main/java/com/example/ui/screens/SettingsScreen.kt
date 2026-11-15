@@ -91,6 +91,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.components.CircularRevealThemeOverlay
 import com.example.ui.components.QrShareDialog
+import com.example.ui.components.ShopyDialog
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CyanTintBg
 import com.example.ui.theme.CyanTintBorder
@@ -1241,11 +1242,9 @@ private fun GoogleDriveDialog(
     onBackup: () -> Unit,
     onRestore: () -> Unit
 ) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val dialogBg = if (isLight) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-
-    AlertDialog(
+    ShopyDialog(
         onDismissRequest = onDismiss,
+        accentColor = ElectricCyan,
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text(
@@ -1371,9 +1370,7 @@ private fun GoogleDriveDialog(
                     }
                 }
             }
-        },
-        containerColor = dialogBg,
-        shape = RoundedCornerShape(20.dp)
+        }
     )
 }
 
