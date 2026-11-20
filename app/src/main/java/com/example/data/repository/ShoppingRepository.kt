@@ -6,15 +6,11 @@ import com.example.data.local.MarketPriceDao
 import com.example.data.local.ShoppingDao
 import com.example.data.local.SpendingDao
 import com.example.data.model.MarketPrice
-import com.example.data.model.PriceHistory
 import com.example.data.model.ShoppingItem
 import com.example.data.model.SpendingRecord
-import com.example.data.model.StoreBasketSummary
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 
 class ShoppingRepository(
     private val shoppingDao: ShoppingDao,
@@ -97,16 +93,8 @@ class ShoppingRepository(
 
     suspend fun clearAllItems() = shoppingDao.clearAll()
 
-    suspend fun getItemByBarcode(barcode: String): ShoppingItem? = shoppingDao.getItemByBarcode(barcode)
-
     fun getPricesForBarcode(barcode: String): Flow<List<MarketPrice>> =
         marketPriceDao.getPricesForBarcode(barcode)
-
-    fun searchPrices(query: String): Flow<List<MarketPrice>> =
-        marketPriceDao.searchMarketPrices(query)
-
-    suspend fun getPriceHistory(barcode: String): Flow<List<PriceHistory>> =
-        marketPriceDao.getPriceHistory(barcode)
 
     suspend fun ensureCatalogPopulated(alreadySeeded: Boolean): Boolean {
         if (alreadySeeded) return true
@@ -156,90 +144,6 @@ class ShoppingRepository(
                 marketPriceDao.updatePriceForBarcode(barcode, newPrice)
             }
         }
-    }
-
-    suspend fun reportCrowdsourcedPrice(barcode: String, storeName: String, storeNameAr: String, itemName: String, newPrice: Double) {
-        if (!newPrice.isFinite() || newPrice <= 0.0) return
-        val existing = marketPriceDao.getPriceForBarcodeAndStore(barcode, storeName)
-        if (existing != null) {
-            marketPriceDao.updatePriceReport(barcode, storeName, newPrice)
-        } else {
-            marketPriceDao.insertMarketPrice(
-                MarketPrice(
-                    barcode = barcode,
-                    itemName = itemName,
-                    itemNameAr = itemName,
-                    storeName = storeName,
-                    storeNameAr = storeNameAr,
-                    priceDzd = newPrice,
-                    verifiedCount = 1
-                )
-            )
-        }
-    }
-
-    /**
-     * Total Basket Price Comparison:
-     * Evaluates all shopping items across known supermarkets on Dispatchers.Default
-     * using pre-indexed HashMaps for O(1) lookup per item.
-     */
-    suspend fun computeBasketComparison(items: List<ShoppingItem>): List<StoreBasketSummary> = withContext(Dispatchers.Default) {
-        if (items.isEmpty()) return@withContext emptyList()
-
-        val allPrices = marketPriceDao.getAllMarketPrices().first()
-        if (allPrices.isEmpty()) return@withContext emptyList()
-
-        val stores = LinkedHashMap<String, String>()
-        val byStoreAndBarcode = HashMap<String, HashMap<String, MarketPrice>>()
-        val byStoreAndName = HashMap<String, HashMap<String, MarketPrice>>()
-
-        for (p in allPrices) {
-            stores.putIfAbsent(p.storeName, p.storeNameAr)
-            byStoreAndBarcode.getOrPut(p.storeName) { HashMap() }.putIfAbsent(p.barcode, p)
-            val nameMap = byStoreAndName.getOrPut(p.storeName) { HashMap() }
-            nameMap.putIfAbsent(p.itemName.lowercase(), p)
-            nameMap.putIfAbsent(p.itemNameAr.lowercase(), p)
-        }
-
-        val summaries = stores.map { (storeName, storeNameAr) ->
-            val barcodeMap = byStoreAndBarcode[storeName]
-            val nameMap = byStoreAndName[storeName]
-            var storeTotal = 0.0
-            var foundCount = 0
-
-            for (item in items) {
-                val priceObj = (item.barcode?.let { barcodeMap?.get(it) })
-                    ?: nameMap?.get(item.name.lowercase())
-                    ?: nameMap?.get(item.nameAr.lowercase())
-
-                if (priceObj != null) {
-                    storeTotal += (priceObj.priceDzd * item.quantity)
-                    foundCount++
-                } else {
-                    storeTotal += (item.estimatedPriceDzd * item.quantity)
-                }
-            }
-
-            StoreBasketSummary(
-                storeName = storeName,
-                storeNameAr = storeNameAr,
-                totalDzd = storeTotal,
-                itemCountFound = foundCount,
-                totalItems = items.size,
-                isBestValue = false
-            )
-        }
-
-        if (summaries.isEmpty()) return@withContext emptyList()
-
-        val minTotal = summaries.minOf { it.totalDzd }
-        val maxTotal = summaries.maxOf { it.totalDzd }
-
-        summaries.map { summary ->
-            val isCheapest = summary.totalDzd == minTotal && minTotal > 0.0
-            val savings = if (maxTotal > summary.totalDzd) maxTotal - summary.totalDzd else 0.0
-            summary.copy(isBestValue = isCheapest, savingsComparedToMaxDzd = savings)
-        }.sortedBy { it.totalDzd }
     }
 
     /**

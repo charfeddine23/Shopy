@@ -13,9 +13,6 @@ interface MarketPriceDao {
     @Query("SELECT * FROM market_prices WHERE barcode = :barcode ORDER BY priceDzd ASC")
     fun getPricesForBarcode(barcode: String): Flow<List<MarketPrice>>
 
-    @Query("SELECT * FROM market_prices WHERE itemName LIKE '%' || :query || '%' OR itemNameAr LIKE '%' || :query || '%' ORDER BY priceDzd ASC")
-    fun searchMarketPrices(query: String): Flow<List<MarketPrice>>
-
     @Query("SELECT * FROM market_prices ORDER BY priceDzd ASC")
     fun getAllMarketPrices(): Flow<List<MarketPrice>>
 
@@ -39,9 +36,6 @@ interface MarketPriceDao {
 
     @Query("UPDATE market_prices SET priceDzd = :newPrice, updatedAt = :updatedAt WHERE barcode = :barcode")
     suspend fun updatePriceForBarcode(barcode: String, newPrice: Double, updatedAt: Long = System.currentTimeMillis())
-
-    @Query("SELECT * FROM price_history WHERE barcode = :barcode ORDER BY id ASC")
-    fun getPriceHistory(barcode: String): Flow<List<PriceHistory>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPriceHistories(histories: List<PriceHistory>)

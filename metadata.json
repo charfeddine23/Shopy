@@ -1,5 +1,5 @@
 {
-  "name": "Shopy Pulse",
+  "name": "Souq Flow",
   "description": "Smart shopping & market price comparison with offline-first Room database, barcode scanner, DZD currency, and basket price optimizer.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

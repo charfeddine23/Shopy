@@ -59,4 +59,12 @@ object LocalizationUtil {
         "HerbalDrinks",
         "Household"
     )
+
+    val defaultAlgerianStores: List<Pair<String, String>> = listOf(
+        "Uno Hypermarket" to "هايبرماركت أونو",
+        "Ardis Alger" to "أرديس الجزائر",
+        "Carrefour Alger" to "كارفور الجزائر",
+        "Superette El Baraka" to "سوبرماركت البركة",
+        "Superette En-Nour" to "سوبرماركت النور"
+    )
 }

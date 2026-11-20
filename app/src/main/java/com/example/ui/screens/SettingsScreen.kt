@@ -35,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.CheckCircle
@@ -43,20 +42,16 @@ import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SwipeVertical
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WaterDrop
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -123,8 +118,6 @@ import java.io.ByteArrayOutputStream
 @Composable
 fun SettingsScreen(
     viewModel: ShoppingViewModel,
-    onBack: () -> Unit = {},
-    onOpenQrShare: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -408,7 +401,7 @@ fun SettingsScreen(
                 lastBackupDate = lastBackupDate,
                 onDismiss = { showDriveDialog = false },
                 onBackup = {
-                    createDocLauncher.launch("ShopyPulse_Backup_${System.currentTimeMillis()}.json")
+                    createDocLauncher.launch("SouqFlow_Backup_${System.currentTimeMillis()}.json")
                 },
                 onRestore = {
                     openDocLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
@@ -1537,7 +1530,7 @@ private fun DeveloperInfoSection(
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Shopy Pulse Official",
+                            text = "Souq Flow Official",
                             color = if (isLight) CyanTintText else ElectricCyan.copy(alpha = 0.85f),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
@@ -1593,7 +1586,7 @@ private fun DeveloperInfoSection(
                 // Item 1: App Name
                 DeveloperInfoMicroCard(
                     title = if (isArabic) "التطبيق" else "App",
-                    value = "Shopy Pulse",
+                    value = "Souq Flow",
                     modifier = Modifier.weight(1f)
                 )
 
@@ -1743,59 +1736,6 @@ private fun SectionHeader(
             color = TextPrimary,
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold
-        )
-    }
-}
-
-/**
- * Neon Badge Chip Component
- */
-@Composable
-private fun NeonBadgeChip(
-    text: String,
-    accentColor: Color
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(accentColor.copy(alpha = 0.14f))
-            .border(BorderStroke(1.dp, accentColor.copy(alpha = 0.6f)), RoundedCornerShape(8.dp))
-            .padding(horizontal = 9.dp, vertical = 3.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            color = accentColor,
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.ExtraBold,
-            letterSpacing = 0.5.sp
-        )
-    }
-}
-
-/**
- * Key-Value Info Row Component
- */
-@Composable
-private fun InfoKeyValueRow(
-    label: String,
-    value: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            color = TextSecondary,
-            fontSize = 13.sp
-        )
-        Text(
-            text = value,
-            color = TextPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
         )
     }
 }

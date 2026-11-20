@@ -51,7 +51,6 @@ import com.example.ui.theme.CyanTintBg
 import com.example.ui.theme.CyanTintBorder
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
-import com.example.ui.theme.NeonAmber
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import kotlin.math.PI
@@ -112,7 +111,6 @@ fun WindGlowAppNameBanner(
     val cyanWindColor = if (isLight) Color(0xFF06B6D4) else ElectricCyan
     val emeraldWindColor = if (isLight) Color(0xFF10B981) else EmeraldSavings
     val violetWindColor = if (isLight) Color(0xFF8B5CF6) else Color(0xFFA78BFA)
-    val amberWindColor = if (isLight) Color(0xFFF59E0B) else NeonAmber
 
     Box(
         modifier = modifier
@@ -282,7 +280,7 @@ fun WindGlowAppNameBanner(
                     ) {
                         Icon(
                             painter = painterResource(id = R.drawable.ic_shopy_pulse_logo),
-                            contentDescription = "Shopy Pulse Logo",
+                            contentDescription = "Souq Flow Logo",
                             tint = Color.Unspecified,
                             modifier = Modifier.size(26.dp)
                         )
@@ -294,7 +292,7 @@ fun WindGlowAppNameBanner(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (isArabic) "شوبي بلس" else "Shopy Pulse",
+                                text = "Souq Flow",
                                 color = TextPrimary,
                                 fontSize = 21.sp,
                                 fontWeight = FontWeight.ExtraBold,
@@ -330,7 +328,7 @@ fun WindGlowAppNameBanner(
                                     )
                                     Spacer(modifier = Modifier.width(3.dp))
                                     Text(
-                                        text = if (isArabic) "نبض ذكي" else "PULSE",
+                                        text = if (isArabic) "انسياب ذكي" else "FLOW",
                                         color = if (isLight) Color(0xFF0284C7) else ElectricCyan,
                                         fontSize = 9.5.sp,
                                         fontWeight = FontWeight.Bold

@@ -10,10 +10,8 @@ import com.example.data.local.AppPreferencesStorage
 import com.example.data.local.DatabaseInitialData
 import com.example.data.local.InMemoryPreferencesStorage
 import com.example.data.model.MarketPrice
-import com.example.data.model.PriceHistory
 import com.example.data.model.ShoppingItem
 import com.example.data.model.SpendingRecord
-import com.example.data.model.StoreBasketSummary
 import com.example.data.repository.ShoppingRepository
 import com.example.ui.components.AppTutorialRegistry
 import com.example.util.ApkDownloadState
@@ -162,9 +160,6 @@ class ShoppingViewModel(
 
     private val _selectedStatsMonth = MutableStateFlow(initialPrefs.selectedStatsMonth)
     val selectedStatsMonth: StateFlow<String> = _selectedStatsMonth.asStateFlow()
-
-    private val _basketSummaries = MutableStateFlow<List<StoreBasketSummary>>(emptyList())
-    val basketSummaries: StateFlow<List<StoreBasketSummary>> = _basketSummaries.asStateFlow()
 
     private val _userMessage = MutableSharedFlow<String>()
     val userMessage: SharedFlow<String> = _userMessage.asSharedFlow()
@@ -427,16 +422,6 @@ class ShoppingViewModel(
         // Automatically check for app updates on every launch
         checkForUpdates(autoOpenOverlay = true)
 
-        // Recompute basket comparison whenever shopping items or market prices change
-        viewModelScope.launch {
-            combine(repository.allShoppingItems, repository.allMarketPrices) { items, _ ->
-                items
-            }.collect { items ->
-                val summaries = repository.computeBasketComparison(items)
-                _basketSummaries.value = summaries
-            }
-        }
-
         // Automatic 12-hour price refresh loop & initial category sanitization
         viewModelScope.launch {
             // Ensure 5000 items catalog is loaded (only once)
@@ -641,11 +626,9 @@ class ShoppingViewModel(
                         val updatedPrice = (priceItem.priceDzd + variance).coerceAtLeast(15.0)
 
                         if (updatedPrice != priceItem.priceDzd) {
-                            repository.reportCrowdsourcedPrice(
+                            repository.updateProductPrice(
                                 barcode = barcode,
                                 storeName = priceItem.storeName,
-                                storeNameAr = priceItem.storeNameAr,
-                                itemName = priceItem.itemName,
                                 newPrice = updatedPrice
                             )
                             updatedCount++
@@ -658,7 +641,6 @@ class ShoppingViewModel(
                 _updatedItemsCount.value = updatedCount
                 preferencesStorage.setLastPriceSyncTimestamp(syncTs)
                 preferencesStorage.setUpdatedItemsCount(updatedCount)
-                _basketSummaries.value = repository.computeBasketComparison(shoppingItems.value)
 
                 val msg = if (_isArabic.value) {
                     "تم تحديث أسعار البيع بالتجزئة للزبون لـ $updatedCount منتج من كبرى المتاجر"
@@ -703,7 +685,6 @@ class ShoppingViewModel(
             if (category.isNotBlank()) {
                 customBarcodeCategories.value = customBarcodeCategories.value + (savedBarcode to category)
             }
-            _basketSummaries.value = repository.computeBasketComparison(shoppingItems.value)
             val msg = if (_isArabic.value) "تمت إضافة \"$nameAr\" بنجاح بسعر التجزئة ${priceDzd.toInt()} د.ج" else "Added \"$name\" at ${priceDzd.toInt()} DZD"
             _userMessage.emit(msg)
         }
@@ -717,31 +698,12 @@ class ShoppingViewModel(
         if (!newPrice.isFinite() || newPrice <= 0.0) return
         viewModelScope.launch {
             repository.updateProductPrice(barcode, storeName, newPrice)
-            _basketSummaries.value = repository.computeBasketComparison(shoppingItems.value)
             val msg = if (_isArabic.value) "تم تعديل السعر إلى ${newPrice.toInt()} د.ج بنجاح" else "Price updated to ${newPrice.toInt()} DZD"
             _userMessage.emit(msg)
         }
     }
 
-    fun reportPrice(
-        barcode: String,
-        storeName: String,
-        storeNameAr: String,
-        itemName: String,
-        priceDzd: Double
-    ) {
-        if (!priceDzd.isFinite() || priceDzd <= 0.0) return
-        viewModelScope.launch {
-            repository.reportCrowdsourcedPrice(barcode, storeName, storeNameAr, itemName, priceDzd)
-            _basketSummaries.value = repository.computeBasketComparison(shoppingItems.value)
-            val msg = if (_isArabic.value) "شكراً لمشاركتك! تم تحديث السعر في $storeNameAr" else "Price updated for $storeName!"
-            _userMessage.emit(msg)
-        }
-    }
-
     fun getPricesForBarcode(barcode: String) = repository.getPricesForBarcode(barcode)
-
-    fun getPriceHistory(barcode: String) = repository.getPricesForBarcode(barcode)
 
     fun getQrSharePayload(): String {
         return repository.createQrShareString(shoppingItems.value)
@@ -762,7 +724,7 @@ class ShoppingViewModel(
     // Google Drive Backup / JSON snapshot generator
     fun generateGoogleDriveBackupPayload(): String {
         val root = JSONObject()
-        root.put("app", "Shopy Pulse")
+        root.put("app", "Souq Flow")
         root.put("version", APP_VERSION)
         root.put("timestamp", System.currentTimeMillis())
         root.put("budgetLimit", _budgetLimitDzd.value)

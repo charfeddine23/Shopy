@@ -1,17 +1,3 @@
 <resources>
-    <string name="app_name">شوبي بلس</string>
-    <string name="currency_dzd">د.ج</string>
-    <string name="currency_dzd_latin">DA</string>
-    <string name="best_value">أفضل سعر</string>
-    <string name="shopping_list">قائمة التسوق</string>
-    <string name="price_comparison">مقارنة الأسعار</string>
-    <string name="scanner">الماسح الضوئي</string>
-    <string name="supermarket_mode">وضع السوبرماركت</string>
-
-    <!-- أزرار شريط التنقل السفلي -->
-    <string name="nav_settings">الإعدادات</string>
-    <string name="nav_cart">السلة</string>
-    <string name="nav_home">الرئيسية</string>
-    <string name="nav_products">المنتجات</string>
-    <string name="nav_profile">الحساب</string>
+    <string name="app_name">Souq Flow</string>
 </resources>

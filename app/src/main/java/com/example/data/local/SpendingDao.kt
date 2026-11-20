@@ -15,9 +15,6 @@ interface SpendingDao {
     @Query("SELECT COUNT(*) FROM spending_records")
     suspend fun getSpendingRecordCount(): Int
 
-    @Query("SELECT * FROM spending_records WHERE monthKey = :monthKey ORDER BY timestamp DESC")
-    fun getSpendingForMonth(monthKey: String): Flow<List<SpendingRecord>>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSpendingRecord(record: SpendingRecord): Long
 
@@ -26,7 +23,4 @@ interface SpendingDao {
 
     @Query("DELETE FROM spending_records WHERE id = :id")
     suspend fun deleteSpendingRecord(id: Long)
-
-    @Query("DELETE FROM spending_records")
-    suspend fun clearAll()
 }

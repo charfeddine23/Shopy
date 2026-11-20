@@ -693,11 +693,6 @@ object CatalogDataGenerator {
     }
 
     /**
-     * Backward-compatible alias for 3000 products.
-     */
-    fun generate3000Products(): List<ShoppingItem> = generate5000Products().take(3000)
-
-    /**
      * Generates market prices for each product in Algerian supermarkets.
      */
     fun generateMarketPricesForCatalog(products: List<ShoppingItem>): List<MarketPrice> {

@@ -590,10 +590,7 @@ fun ShopyPulseApp(
                                 Screen.HOME -> HomeScreen(
                                     viewModel = viewModel,
                                     onNavigateToPriceComparison = { viewModel.setCurrentScreen(Screen.PRICES.name) },
-                                    onNavigateToSupermarketMode = { viewModel.setCurrentScreen(Screen.SUPERMARKET.name) },
-                                    onNavigateToSettings = { viewModel.setCurrentScreen(Screen.SETTINGS.name) },
-                                    onNavigateToStatistics = { viewModel.setCurrentScreen(Screen.STATISTICS.name) },
-                                    onOpenQrShare = { showQrShareDialog = true }
+                                    onNavigateToSupermarketMode = { viewModel.setCurrentScreen(Screen.SUPERMARKET.name) }
                                 )
 
                                 Screen.PRICES -> PriceComparisonScreen(
@@ -602,9 +599,7 @@ fun ShopyPulseApp(
                                 )
 
                                 Screen.SETTINGS -> SettingsScreen(
-                                    viewModel = viewModel,
-                                    onBack = { viewModel.setCurrentScreen(Screen.HOME.name) },
-                                    onOpenQrShare = { showQrShareDialog = true }
+                                    viewModel = viewModel
                                 )
 
                                 else -> Unit
@@ -933,12 +928,6 @@ private fun RowScope.NavItem(
             )
         }
     }
-}
-
-// Backward compatibility alias
-@Composable
-fun SoukSmartApp(viewModel: ShoppingViewModel, isDarkMode: Boolean = true) {
-    ShopyPulseApp(viewModel = viewModel, isDarkMode = isDarkMode)
 }
 
 internal fun resolvePreservedTopInsetPx(

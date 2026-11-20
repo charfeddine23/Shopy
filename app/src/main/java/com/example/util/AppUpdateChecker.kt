@@ -129,7 +129,7 @@ object AppUpdateChecker {
     private fun buildRequest(url: String, accept: String? = null): Request {
         return Request.Builder()
             .url(url)
-            .header("User-Agent", "ShopyPulse-Android")
+            .header("User-Agent", "SouqFlow-Android")
             .header("Cache-Control", "no-cache, no-store, must-revalidate")
             .header("Pragma", "no-cache")
             .apply {
@@ -906,7 +906,7 @@ object AppUpdateChecker {
         }
 
         val safeVersion = versionLabel.replace(Regex("[^a-zA-Z0-9._-]"), "_").ifBlank { "latest" }
-        val targetFile = File(updatesDir, "Shopy.Pulse.$safeVersion.apk")
+        val targetFile = File(updatesDir, "Souq.Flow.$safeVersion.apk")
 
         try {
             if (!targetFile.canonicalPath.startsWith(updatesDir.canonicalPath + File.separator)) {
@@ -954,7 +954,7 @@ object AppUpdateChecker {
 
             val request = Request.Builder()
                 .url(effectiveUrl)
-                .header("User-Agent", "ShopyPulse-Android")
+                .header("User-Agent", "SouqFlow-Android")
                 .header("Accept", "application/vnd.android.package-archive, application/octet-stream, */*")
                 .header("Accept-Encoding", "identity")
                 .build()

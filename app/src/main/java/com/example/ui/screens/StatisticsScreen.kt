@@ -1,6 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -8,7 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -28,7 +26,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -38,18 +35,14 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingBag
-import androidx.compose.material.icons.filled.Store
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,7 +70,6 @@ import com.example.ui.theme.CyanTintBorder
 import com.example.ui.theme.CyanTintText
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
-import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.LightCardBorder
 import com.example.ui.theme.MintTintBg
 import com.example.ui.theme.MintTintBorder
@@ -815,7 +807,6 @@ private fun ManualExpenseDialog(
     var storeNameAr by remember { mutableStateOf("هايبرماركت أونو") }
     var countText by remember { mutableStateOf("5") }
     var notes by remember { mutableStateOf("") }
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
 
     val parsedAmount = amountText.replace(",", ".").toDoubleOrNull()
     val parsedCount = countText.toIntOrNull()?.coerceIn(1, 999) ?: 1

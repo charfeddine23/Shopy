@@ -14,8 +14,6 @@ val BackgroundSurfaceElevated = Color(0xFF161E2E)
 val GlassSurfaceDark = Color(0x331E2A40)
 val GlassSurfaceLightDark = Color(0x4D2A3A54)
 val GlassBorderDark = Color(0x26FFFFFF)
-val GlassBorderGlowing = Color(0x4D00E5FF)
-val GlassHighlight = Color(0x1FFFFFFF)
 
 // StrikePulse Aurora Light Mode Palette (Matches screenshots)
 val BackgroundLight = Color(0xFFF2F6F9)
@@ -46,22 +44,12 @@ val PeachTintBg = Color(0xFFFFF2DC)
 val PeachTintBorder = Color(0xFFFBBF24)
 val PeachTintText = Color(0xFFD97706)
 
-val LavenderTintBg = Color(0xFFF3EDFA)
-val LavenderTintBorder = Color(0xFFC084FC)
-val LavenderTintText = Color(0xFF7C3AED)
-
-// Floating Dark Pill Navigation Bar (Screenshot Style)
-val FloatingBottomNavBg = Color(0xFF0F172A)
-val FloatingBottomNavBorder = Color(0x33475569)
-
 // Glowing Neon Accents
 val EmeraldSavings = Color(0xFF00E676)
 val EmeraldDark = Color(0xFF059669)
-val EmeraldGlow = Color(0x3300E676)
 
 val ElectricCyan = Color(0xFF00E5FF)
 val ElectricCyanDark = Color(0xFF0284C7)
-val CyanGlow = Color(0x3300E5FF)
 
 val NeonAmber = Color(0xFFFFB300)
 val NeonRed = Color(0xFFFF5252)
@@ -104,4 +92,3 @@ val GlassBorder: Color
 
 // Supermarket Mode High Contrast
 val CheckedGreen = Color(0xFF10B981)
-val ItemCardBg = Color(0x2B1A2436)

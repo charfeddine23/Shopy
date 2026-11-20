@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -37,11 +36,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import com.example.ui.theme.BackgroundLight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -74,7 +71,6 @@ import com.example.ui.theme.CyanTintText
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
 import com.example.ui.theme.GlassBorder
-import com.example.ui.theme.GlassSurface
 import com.example.ui.theme.LightCardBorder
 import com.example.ui.theme.NeonAmber
 import com.example.ui.theme.NeonRed
@@ -136,8 +132,7 @@ fun SupermarketModeScreen(
                     isArabic = isArabic,
                     onBack = onBack,
                     hideChecked = hideChecked,
-                    onToggleHideChecked = { hideChecked = !hideChecked },
-                    onFinishShopping = { showFinishDialog = true }
+                    onToggleHideChecked = { hideChecked = !hideChecked }
                 )
             }
 
@@ -425,8 +420,7 @@ private fun SupermarketModeHeader(
     isArabic: Boolean,
     onBack: () -> Unit,
     hideChecked: Boolean,
-    onToggleHideChecked: () -> Unit,
-    onFinishShopping: () -> Unit
+    onToggleHideChecked: () -> Unit
 ) {
     val isLight = androidx.compose.material3.MaterialTheme.colorScheme.background == BackgroundLight
     val filterActiveColor = if (isLight) CyanTintText else ElectricCyan

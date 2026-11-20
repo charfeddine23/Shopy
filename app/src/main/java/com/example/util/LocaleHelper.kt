@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.content.res.Configuration
 import android.os.Build
 import android.os.LocaleList
-import android.view.View
 import java.util.Locale
 
 /**
@@ -64,31 +63,6 @@ object LocaleHelper {
             res.updateConfiguration(config, res.displayMetrics)
             ContextWrapper(context)
         }
-    }
-
-    /**
-     * Dynamically forces or resets layout direction on any specific View or decorView.
-     */
-    fun applyLayoutDirection(view: View, languageCode: String) {
-        if (languageCode == LANG_ARABIC) {
-            view.layoutDirection = View.LAYOUT_DIRECTION_RTL
-        } else {
-            view.layoutDirection = View.LAYOUT_DIRECTION_LTR
-        }
-    }
-
-    /**
-     * Forces LTR layout direction regardless of current system/app locale.
-     */
-    fun forceLtr(view: View) {
-        view.layoutDirection = View.LAYOUT_DIRECTION_LTR
-    }
-
-    /**
-     * Forces RTL layout direction regardless of current system/app locale.
-     */
-    fun forceRtl(view: View) {
-        view.layoutDirection = View.LAYOUT_DIRECTION_RTL
     }
 
     private fun getPersistedLanguage(context: Context, defaultLanguage: String): String {

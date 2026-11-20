@@ -44,13 +44,3 @@ data class PriceHistory(
     val priceDzd: Double,
     val dateLabel: String // e.g. "Aug 2026", "Sep 2026", "Oct 2026"
 )
-
-data class StoreBasketSummary(
-    val storeName: String,
-    val storeNameAr: String,
-    val totalDzd: Double,
-    val itemCountFound: Int,
-    val totalItems: Int,
-    val isBestValue: Boolean,
-    val savingsComparedToMaxDzd: Double = 0.0
-)

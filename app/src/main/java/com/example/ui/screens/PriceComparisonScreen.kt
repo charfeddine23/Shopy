@@ -41,20 +41,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.TrendingDown
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TrendingUp
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -100,7 +97,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.MarketPrice
-import com.example.data.model.StoreBasketSummary
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.LiquidSheetShape
@@ -130,8 +126,6 @@ import com.example.ui.theme.TextSecondary
 import com.example.ui.viewmodel.ShoppingViewModel
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import com.example.util.ProductGroup
@@ -1176,367 +1170,6 @@ fun UpdateSettingsSheet(
 }
 
 @Composable
-fun DirectProductPriceItem(
-    barcode: String,
-    itemName: String,
-    itemNameAr: String,
-    storeName: String,
-    storeNameAr: String,
-    priceDzd: Double,
-    isArabic: Boolean,
-    onEditPrice: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val cardBg = if (isLight) Color.White else Color(0xFF131D31)
-    val cardBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x24FFFFFF))
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(cardBg)
-            .border(cardBorder, RoundedCornerShape(14.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-            .testTag("product_item_$barcode")
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (isArabic) itemNameAr else itemName,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Storefront,
-                        contentDescription = null,
-                        tint = TextSecondary,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isArabic) storeNameAr else storeName,
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Direct Price Display
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(
-                            if (isLight) MintTintBg else Color(0x2600E676)
-                        )
-                        .border(
-                            BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.5f)),
-                            RoundedCornerShape(10.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = LocalizationUtil.formatDzd(priceDzd, isArabic),
-                        color = if (isLight) MintTintText else EmeraldSavings,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                IconButton(
-                    onClick = onEditPrice,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit Price",
-                        tint = if (isLight) CyanTintText else ElectricCyan.copy(alpha = 0.7f),
-                        modifier = Modifier.size(15.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TotalBasketSection(
-    summaries: List<StoreBasketSummary>,
-    isArabic: Boolean,
-    modifier: Modifier = Modifier
-) {
-    LiquidGlassCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("total_basket_card"),
-        glowColor = EmeraldSavings
-    ) {
-        Column(modifier = Modifier.padding(18.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.TrendingDown,
-                            contentDescription = null,
-                            tint = EmeraldSavings,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isArabic) "مقارنة تكلفة السلة الإجمالية" else "Total Basket Comparison",
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = if (isArabic) "حساب السعر الكلي لكل قائمة مشترياتك في كل متجر" else "Calculated total for your active shopping list",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-
-                NeonBadge(
-                    text = if (isArabic) "محدث" else "LIVE",
-                    accentColor = ElectricCyan
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            if (summaries.isEmpty()) {
-                Text(
-                    text = if (isArabic) "أضف عناصر لقائمتك لمقارنة تكلفة السلة الكلية" else "Add items to your list to compare full basket totals",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            } else {
-                val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-                summaries.forEachIndexed { index, summary ->
-                    val isCheapest = summary.isBestValue
-                    val rowBg = if (isLight) {
-                        if (isCheapest) MintTintBg else Color(0xFFF8FAFC)
-                    } else {
-                        if (isCheapest) Color(0x2E00E676) else Color(0x12FFFFFF)
-                    }
-                    val rowBorder = if (isLight) {
-                        if (isCheapest) BorderStroke(1.5.dp, MintTintBorder) else BorderStroke(1.dp, LightCardBorder)
-                    } else {
-                        if (isCheapest) BorderStroke(1.dp, EmeraldSavings.copy(alpha = 0.5f)) else BorderStroke(1.dp, Color(0x10FFFFFF))
-                    }
-                    val saveTextColor = if (isLight) MintTintText else EmeraldSavings
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(rowBg)
-                            .border(rowBorder, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "#${index + 1}",
-                                color = if (isCheapest) saveTextColor else TextSecondary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.width(26.dp)
-                            )
-                            Column {
-                                Text(
-                                    text = if (isArabic) summary.storeNameAr else summary.storeName,
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = if (isCheapest) FontWeight.Bold else FontWeight.SemiBold
-                                )
-                                if (isCheapest && summary.savingsComparedToMaxDzd > 0) {
-                                    Text(
-                                        text = if (isArabic) {
-                                            "وفرت ${LocalizationUtil.formatDzd(summary.savingsComparedToMaxDzd, true)}"
-                                        } else {
-                                            "Save ${LocalizationUtil.formatDzd(summary.savingsComparedToMaxDzd, false)}"
-                                        },
-                                        color = saveTextColor,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (isCheapest) {
-                                NeonBadge(
-                                    text = if (isArabic) "أفضل سعر" else "BEST VALUE",
-                                    accentColor = EmeraldSavings,
-                                    modifier = Modifier.padding(end = 8.dp)
-                                )
-                            }
-                            Text(
-                                text = LocalizationUtil.formatDzd(summary.totalDzd, isArabic),
-                                color = if (isCheapest) saveTextColor else TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ProductPriceMatrixCard(
-    barcode: String,
-    itemName: String,
-    itemNameAr: String,
-    prices: List<MarketPrice>,
-    isArabic: Boolean,
-    onReportPrice: (MarketPrice) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val minPrice = remember(prices) { prices.minOfOrNull { it.priceDzd } ?: 0.0 }
-    val maxPrice = remember(prices) { prices.maxOfOrNull { it.priceDzd } ?: 0.0 }
-    val diff = maxPrice - minPrice
-
-    LiquidGlassCard(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag("price_matrix_$barcode")
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = if (isArabic) itemNameAr else itemName,
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                if (diff > 0) {
-                    NeonBadge(
-                        text = if (isArabic) "فارق ${LocalizationUtil.formatDzd(diff, true)}" else "Diff: ${LocalizationUtil.formatDzd(diff, false)}",
-                        accentColor = NeonAmber
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Supermarket Price Breakdown
-            val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                prices.forEach { price ->
-                    val isCheapest = price.priceDzd == minPrice
-                    val rowBg = if (isLight) {
-                        if (isCheapest) MintTintBg else Color(0xFFF8FAFC)
-                    } else {
-                        if (isCheapest) Color(0x2200E676) else Color(0x10FFFFFF)
-                    }
-                    val rowBorder = if (isLight) {
-                        if (isCheapest) BorderStroke(1.dp, MintTintBorder) else BorderStroke(1.dp, LightCardBorder)
-                    } else {
-                        BorderStroke(1.dp, Color.Transparent)
-                    }
-                    val priceTextColor = if (isCheapest) (if (isLight) MintTintText else EmeraldSavings) else TextPrimary
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(rowBg)
-                            .border(rowBorder, RoundedCornerShape(10.dp))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Storefront,
-                                contentDescription = null,
-                                tint = if (isCheapest) (if (isLight) MintTintText else EmeraldSavings) else TextSecondary,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (isArabic) price.storeNameAr else price.storeName,
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = if (isCheapest) FontWeight.Bold else FontWeight.Normal
-                            )
-                            if (price.isPromo) {
-                                Spacer(modifier = Modifier.width(6.dp))
-                                NeonBadge(
-                                    text = price.promoNote ?: if (isArabic) "عرض" else "PROMO",
-                                    accentColor = NeonAmber
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = LocalizationUtil.formatDzd(price.priceDzd, isArabic),
-                                color = priceTextColor,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Spacer(modifier = Modifier.width(6.dp))
-
-                            // Crowdsource update icon
-                            IconButton(
-                                onClick = { onReportPrice(price) },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Edit,
-                                    contentDescription = "Report Price",
-                                    tint = if (isLight) CyanTintText else ElectricCyan.copy(alpha = 0.7f),
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ReportPriceDialog(
     priceItem: MarketPrice,
     isArabic: Boolean,
@@ -1633,13 +1266,7 @@ private fun AddProductOrGroupDialog(
     var selectedCategory by remember { mutableStateOf("Dairy") }
     var priceText by remember { mutableStateOf("") }
 
-    val stores = listOf(
-        Pair("Uno Hypermarket", "هايبرماركت أونو"),
-        Pair("Ardis Alger", "أرديس الجزائر"),
-        Pair("Carrefour Alger", "كارفور الجزائر"),
-        Pair("Superette El Baraka", "سوبرماركت البركة"),
-        Pair("Superette En-Nour", "سوبرماركت النور")
-    )
+    val stores = LocalizationUtil.defaultAlgerianStores
     var selectedStoreIndex by remember { mutableStateOf(0) }
 
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight

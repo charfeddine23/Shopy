@@ -51,18 +51,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Storefront
-import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -126,7 +119,6 @@ import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.GlassSurface
-import com.example.ui.theme.GlassSurfaceDark
 import com.example.ui.theme.GlassSurfaceLight
 import com.example.ui.theme.LightCardBorder
 import com.example.ui.theme.LightCardSurface
@@ -149,17 +141,13 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeScreen(
     viewModel: ShoppingViewModel,
-    onNavigateToStatistics: () -> Unit = {},
     onNavigateToPriceComparison: () -> Unit,
     onNavigateToSupermarketMode: () -> Unit,
-    onNavigateToSettings: () -> Unit = {},
-    onOpenQrShare: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.shoppingItems.collectAsStateWithLifecycle()
     val isArabic by viewModel.isArabic.collectAsStateWithLifecycle()
     val selectedCategory by viewModel.selectedCategory.collectAsStateWithLifecycle()
-    val basketSummaries by viewModel.basketSummaries.collectAsStateWithLifecycle()
     val isDynamicGlowEnabled by viewModel.isDynamicGlowEnabled.collectAsStateWithLifecycle()
 
     var showAddDialog by remember { mutableStateOf(false) }
@@ -393,13 +381,7 @@ fun HomeScreen(
 
     // Finish Shopping Trip & Transfer to Analytics Dialog
     if (showFinishTripDialog) {
-            val stores = listOf(
-                Pair("Uno Hypermarket", "هايبرماركت أونو"),
-                Pair("Ardis Alger", "أرديس الجزائر"),
-                Pair("Carrefour Alger", "كارفور الجزائر"),
-                Pair("Superette El Baraka", "سوبرماركت البركة"),
-                Pair("Superette En-Nour", "سوبرماركت النور")
-            )
+            val stores = LocalizationUtil.defaultAlgerianStores
             var selectedStoreIndex by remember { mutableStateOf(0) }
             val isLight = MaterialTheme.colorScheme.background == BackgroundLight
 

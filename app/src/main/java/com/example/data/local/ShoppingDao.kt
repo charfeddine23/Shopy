@@ -14,15 +14,6 @@ interface ShoppingDao {
     @Query("SELECT * FROM shopping_items ORDER BY isChecked ASC, createdAt DESC")
     fun getAllShoppingItems(): Flow<List<ShoppingItem>>
 
-    @Query("SELECT * FROM shopping_items WHERE isFrequent = 1")
-    fun getFrequentItems(): Flow<List<ShoppingItem>>
-
-    @Query("SELECT * FROM shopping_items WHERE barcode = :barcode LIMIT 1")
-    suspend fun getItemByBarcode(barcode: String): ShoppingItem?
-
-    @Query("SELECT * FROM shopping_items WHERE id = :id LIMIT 1")
-    suspend fun getItemById(id: Long): ShoppingItem?
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertItem(item: ShoppingItem): Long
 

@@ -546,9 +546,6 @@ class ExampleUnitTest {
 
     private class FakeShoppingDao(private val store: MutableList<ShoppingItem>) : ShoppingDao {
         override fun getAllShoppingItems(): Flow<List<ShoppingItem>> = flowOf(store)
-        override fun getFrequentItems(): Flow<List<ShoppingItem>> = flowOf(emptyList())
-        override suspend fun getItemByBarcode(barcode: String): ShoppingItem? = null
-        override suspend fun getItemById(id: Long): ShoppingItem? = null
         override suspend fun insertItem(item: ShoppingItem): Long {
             store.add(item)
             return store.size.toLong()
@@ -568,7 +565,6 @@ class ExampleUnitTest {
 
     private class FakeMarketPriceDao : MarketPriceDao {
         override fun getPricesForBarcode(barcode: String): Flow<List<MarketPrice>> = flowOf(emptyList())
-        override fun searchMarketPrices(query: String): Flow<List<MarketPrice>> = flowOf(emptyList())
         override fun getAllMarketPrices(): Flow<List<MarketPrice>> = flowOf(emptyList())
         override suspend fun getMarketPriceCount(): Int = 0
         override suspend fun getBestPriceForBarcode(barcode: String): MarketPrice? = null
@@ -577,17 +573,14 @@ class ExampleUnitTest {
         override suspend fun insertMarketPrices(prices: List<MarketPrice>) {}
         override suspend fun updatePriceReport(barcode: String, storeName: String, newPrice: Double, updatedAt: Long) {}
         override suspend fun updatePriceForBarcode(barcode: String, newPrice: Double, updatedAt: Long) {}
-        override fun getPriceHistory(barcode: String): Flow<List<PriceHistory>> = flowOf(emptyList())
         override suspend fun insertPriceHistories(histories: List<PriceHistory>) {}
     }
 
     private class FakeSpendingDao : SpendingDao {
         override fun getAllSpendingRecords(): Flow<List<SpendingRecord>> = flowOf(emptyList())
         override suspend fun getSpendingRecordCount(): Int = 0
-        override fun getSpendingForMonth(monthKey: String): Flow<List<SpendingRecord>> = flowOf(emptyList())
         override suspend fun insertSpendingRecord(record: SpendingRecord): Long = 1L
         override suspend fun insertSpendingRecords(records: List<SpendingRecord>) {}
         override suspend fun deleteSpendingRecord(id: Long) {}
-        override suspend fun clearAll() {}
     }
 }

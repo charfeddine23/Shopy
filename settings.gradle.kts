@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Shopy Pulse"
+rootProject.name = "Souq Flow"
 
 include(":app")

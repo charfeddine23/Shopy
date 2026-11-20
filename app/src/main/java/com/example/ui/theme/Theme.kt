@@ -88,20 +88,3 @@ fun ShopyPulseTheme(
         content = content
     )
 }
-
-// Backward compatibility aliases
-@Composable
-fun ShopyPelseTheme(
-    darkTheme: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    ShopyPulseTheme(darkTheme = darkTheme, content = content)
-}
-
-@Composable
-fun SoukSmartTheme(
-    darkTheme: Boolean = true,
-    content: @Composable () -> Unit
-) {
-    ShopyPulseTheme(darkTheme = darkTheme, content = content)
-}
