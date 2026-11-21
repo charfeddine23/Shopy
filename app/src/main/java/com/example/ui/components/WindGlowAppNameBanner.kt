@@ -9,6 +9,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -278,11 +279,10 @@ fun WindGlowAppNameBanner(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_shopy_pulse_logo),
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_souq_flow_logo),
                             contentDescription = "Souq Flow Logo",
-                            tint = Color.Unspecified,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(36.dp)
                         )
                     }
 
