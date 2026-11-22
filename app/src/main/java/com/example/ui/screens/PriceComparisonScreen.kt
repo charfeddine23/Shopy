@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animate
@@ -37,6 +39,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -45,6 +48,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AddShoppingCart
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -54,6 +58,7 @@ import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -97,11 +102,14 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.MarketPrice
+import com.example.ui.components.AppleLiquidGlassTopBarLayout
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.LiquidSheetShape
+import com.example.ui.components.LocalPreservedTopInset
 import com.example.ui.components.NeonBadge
 import com.example.ui.components.ShopyDialog
+import com.example.ui.components.SouqSectionHeader
 import com.example.ui.components.liquidWindowContainerColor
 import com.example.ui.components.disableParentPagerSwipe
 import com.example.ui.components.horizontalFadingEdge
@@ -123,6 +131,7 @@ import com.example.ui.theme.NeonAmber
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.categoryAccentColor
 import com.example.ui.viewmodel.ShoppingViewModel
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
@@ -279,6 +288,9 @@ fun PriceComparisonScreen(
         }
     }
 
+    val listState = rememberLazyListState()
+    val preservedTopInset = LocalPreservedTopInset.current
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -290,7 +302,9 @@ fun PriceComparisonScreen(
             threshold = pullThreshold,
             holdProgress = holdProgress,
             isSyncing = isSyncingPrices,
-            modifier = Modifier.align(Alignment.TopCenter)
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = preservedTopInset)
         )
 
         // Floating Pull-To-Refresh / Hold-for-Settings Indicator
@@ -298,7 +312,7 @@ fun PriceComparisonScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 10.dp)
+                    .padding(top = preservedTopInset + 74.dp)
                     .align(Alignment.TopCenter)
                     .zIndex(10f),
                 contentAlignment = Alignment.Center
@@ -313,14 +327,11 @@ fun PriceComparisonScreen(
             }
         }
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .offset { IntOffset(0, pullOffset.toInt().coerceAtMost(200)) },
-            contentPadding = PaddingValues(bottom = 96.dp, top = 8.dp)
-        ) {
-            // Header Bar
-            item {
+        AppleLiquidGlassTopBarLayout(
+            listState = listState,
+            modifier = Modifier.fillMaxSize(),
+            defaultHeaderHeight = 72.dp,
+            topBar = { blurProgress ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -329,8 +340,9 @@ fun PriceComparisonScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-                    val backBtnBg = if (isLight) Color.White else Color(0x33FFFFFF)
-                    val backBtnBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x20FFFFFF))
+                    val glassAlpha = 0.72f + 0.18f * blurProgress
+                    val backBtnBg = if (isLight) Color.White.copy(alpha = glassAlpha) else Color(0xFF1E293B).copy(alpha = 0.55f + 0.2f * blurProgress)
+                    val backBtnBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x33FFFFFF))
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -373,7 +385,7 @@ fun PriceComparisonScreen(
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(12.dp))
-                            .background(if (isLight) CyanTintBg else ElectricCyan.copy(alpha = 0.18f))
+                            .background(if (isLight) CyanTintBg.copy(alpha = 0.88f) else ElectricCyan.copy(alpha = 0.20f))
                             .border(
                                 BorderStroke(1.2.dp, if (isLight) CyanTintBorder else ElectricCyan.copy(alpha = 0.55f)),
                                 RoundedCornerShape(12.dp)
@@ -401,176 +413,241 @@ fun PriceComparisonScreen(
                     }
                 }
             }
-
-            // Search Bar
-            item {
-                val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.setSearchQuery(it) },
-                    placeholder = {
-                        Text(
-                            if (isArabic) "ابحث عن منتج (مثال: حليب، إيليو، قهوة...)" else "Search products (e.g., Milk, Oil, Coffee...)",
-                            color = TextSecondary
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Search,
-                            contentDescription = null,
-                            tint = if (isLight) CyanTintText else ElectricCyan
-                        )
-                    },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                        .testTag("search_price_input"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = if (isLight) Color.White else Color(0x33141F32),
-                        unfocusedContainerColor = if (isLight) Color.White else Color(0x22141F32),
-                        focusedBorderColor = if (isLight) CyanTintBorder else ElectricCyan,
-                        unfocusedBorderColor = GlassBorder,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    )
-                )
-            }
-
-            // Category Chips Selector in PriceComparisonScreen
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .disableParentPagerSwipe()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    androidx.compose.foundation.lazy.LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) { topPadding ->
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .offset { IntOffset(0, pullOffset.toInt().coerceAtMost(200)) },
+                contentPadding = PaddingValues(bottom = 96.dp, top = topPadding + 4.dp)
+            ) {
+                // Search Bar with instant clear
+                item {
+                    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { viewModel.setSearchQuery(it) },
+                        placeholder = {
+                            Text(
+                                if (isArabic) "ابحث عن منتج (مثال: حليب، إيليو، قهوة...)" else "Search products (e.g., Milk, Oil, Coffee...)",
+                                color = TextSecondary,
+                                fontSize = 13.5.sp
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = if (isLight) CyanTintText else ElectricCyan
+                            )
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = if (isArabic) "مسح البحث" else "Clear search",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
+                        singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalFadingEdge(fadeWidth = 26.dp)
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                            .testTag("search_price_input"),
+                        shape = RoundedCornerShape(18.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = if (isLight) Color.White else Color(0xCC11192B),
+                            unfocusedContainerColor = if (isLight) Color(0xF5FFFFFF) else Color(0xAA11192B),
+                            focusedBorderColor = if (isLight) CyanTintBorder else ElectricCyan,
+                            unfocusedBorderColor = if (isLight) LightCardBorder else Color(0x28FFFFFF),
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                }
+
+                // Category Chips Selector with color-coded dots
+                item {
+                    val isLightCat = MaterialTheme.colorScheme.background == BackgroundLight
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .disableParentPagerSwipe()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
                     ) {
-                        items(LocalizationUtil.allCategories.size) { idx ->
-                            val cat = LocalizationUtil.allCategories[idx]
-                            val isSelected = selectedCategory == cat
-                            val label = if (cat == "All") {
-                                if (isArabic) "الكل" else "All"
-                            } else {
-                                LocalizationUtil.getCategoryLabel(cat, isArabic)
-                            }
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalFadingEdge(fadeWidth = 26.dp)
+                        ) {
+                            items(LocalizationUtil.allCategories.size) { idx ->
+                                val cat = LocalizationUtil.allCategories[idx]
+                                val isSelected = selectedCategory == cat
+                                val accent = if (cat == "All") {
+                                    if (isLightCat) CyanTintText else ElectricCyan
+                                } else {
+                                    categoryAccentColor(cat, isLightCat)
+                                }
+                                val label = if (cat == "All") {
+                                    if (isArabic) "الكل" else "All"
+                                } else {
+                                    LocalizationUtil.getCategoryLabel(cat, isArabic)
+                                }
 
-                            val isLightCat = MaterialTheme.colorScheme.background == BackgroundLight
-                            val chipBg = if (isLightCat) {
-                                if (isSelected) CyanTintBg else Color.White
-                            } else {
-                                if (isSelected) ElectricCyan.copy(alpha = 0.25f) else Color(0x1F1E283A)
-                            }
-                            val chipBorder = if (isLightCat) {
-                                if (isSelected) BorderStroke(1.5.dp, CyanTintBorder) else BorderStroke(1.dp, LightCardBorder)
-                            } else {
-                                if (isSelected) BorderStroke(1.dp, ElectricCyan) else BorderStroke(1.dp, Color(0x20FFFFFF))
-                            }
-                            val chipTextColor = if (isLightCat) {
-                                if (isSelected) CyanTintText else TextPrimary
-                            } else {
-                                if (isSelected) ElectricCyan else TextSecondary
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(chipBg)
-                                    .border(chipBorder, RoundedCornerShape(12.dp))
-                                    .clickable { viewModel.setSelectedPriceCategory(cat) }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp)
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = chipTextColor,
-                                    fontSize = 13.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                val chipBg by animateColorAsState(
+                                    targetValue = if (isSelected) accent.copy(alpha = if (isLightCat) 0.16f else 0.24f) else (if (isLightCat) Color.White else Color(0x1F1E283A)),
+                                    label = "price_cat_bg"
                                 )
+                                val chipBorder = if (isSelected) {
+                                    BorderStroke(1.3.dp, accent)
+                                } else {
+                                    BorderStroke(1.dp, if (isLightCat) LightCardBorder else Color(0x20FFFFFF))
+                                }
+
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(chipBg)
+                                        .border(chipBorder, RoundedCornerShape(14.dp))
+                                        .clickable { viewModel.setSelectedPriceCategory(cat) }
+                                        .padding(horizontal = 13.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (cat != "All") {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(7.dp)
+                                                .clip(CircleShape)
+                                                .background(accent)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) accent else TextSecondary,
+                                        fontSize = 12.5.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // Section Title: Grouped Products & Auto-Categorization
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            text = if (isArabic) "مجموعات المنتجات والأسعار" else "Grouped Products & Prices",
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = if (isArabic) "اضغط على أي مجموعة لتوسيع أصنافها وخياراتها" else "Tap any group to expand variants",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                    NeonBadge(
-                        text = if (isArabic) "${productGroups.size} مجموعة" else "${productGroups.size} Groups",
-                        accentColor = ElectricCyan
+                // Section Title + Quick Refresh & Settings Pill
+                item {
+                    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+                    SouqSectionHeader(
+                        icon = Icons.Default.Storefront,
+                        title = if (isArabic) "مجموعات المنتجات (${productGroups.size})" else "Product Groups (${productGroups.size})",
+                        subtitle = if (isArabic) "اضغط على أي مجموعة للتوسيع • اسحب للتحديث" else "Tap to expand • Pull down to sync",
+                        accentColor = if (isLight) CyanTintText else ElectricCyan,
+                        trailing = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                IconButton(
+                                    onClick = { showUpdateSettingsDialog = true },
+                                    modifier = Modifier
+                                        .size(34.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isLight) Color.White else Color(0x1EFFFFFF))
+                                        .border(BorderStroke(1.dp, if (isLight) LightCardBorder else Color(0x28FFFFFF)), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Settings,
+                                        contentDescription = if (isArabic) "إعدادات التحديث" else "Sync settings",
+                                        tint = TextSecondary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.16f))
+                                        .border(
+                                            BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.45f)),
+                                            RoundedCornerShape(12.dp)
+                                        )
+                                        .clickable(enabled = !isSyncingPrices) { viewModel.refreshEssentialPrices() }
+                                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Refresh,
+                                            contentDescription = if (isArabic) "تحديث الأسعار" else "Refresh prices",
+                                            tint = if (isLight) MintTintText else EmeraldSavings,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(
+                                            text = if (isArabic) "تحديث" else "Sync",
+                                            color = if (isLight) MintTintText else EmeraldSavings,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
-            }
 
-            // Grouped Product Cards with Direct Add Group to Cart & Expandable Sub-variants
-            items(productGroups, key = { it.id }) { group ->
-                ProductGroupCard(
-                    group = group,
-                    isArabic = isArabic,
-                    autoExpand = searchQuery.isNotBlank(),
-                    searchQuery = searchQuery,
-                    onAddGroupToCart = { grp ->
-                        viewModel.addItem(
-                            name = grp.nameEn,
-                            nameAr = grp.nameAr,
-                            category = grp.category,
-                            quantity = 1,
-                            unit = if (isArabic) "مجموعة" else "group",
-                            barcode = "GRP-${grp.id}",
-                            estimatedPriceDzd = grp.avgPrice
-                        )
-                    },
-                    onAddVariantToCart = { variant ->
-                        viewModel.addItem(
-                            name = variant.itemName,
-                            nameAr = variant.itemNameAr,
-                            category = group.category,
-                            quantity = 1,
-                            unit = "pcs",
-                            barcode = variant.barcode,
-                            estimatedPriceDzd = variant.priceDzd
-                        )
-                    },
-                    onEditVariantPrice = { variant ->
-                        reportItemDialog = variant.allPrices.firstOrNull() ?: MarketPrice(
-                            barcode = variant.barcode,
-                            itemName = variant.itemName,
-                            itemNameAr = variant.itemNameAr,
-                            storeName = variant.storeName,
-                            storeNameAr = variant.storeNameAr,
-                            priceDzd = variant.priceDzd,
-                            verifiedCount = 1
-                        )
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-            }
+                // Grouped Product Cards with Direct Add Group to Cart & Expandable Sub-variants
+                items(productGroups, key = { it.id }) { group ->
+                    ProductGroupCard(
+                        group = group,
+                        isArabic = isArabic,
+                        autoExpand = searchQuery.isNotBlank(),
+                        searchQuery = searchQuery,
+                        onAddGroupToCart = { grp ->
+                            viewModel.addItem(
+                                name = grp.nameEn,
+                                nameAr = grp.nameAr,
+                                category = grp.category,
+                                quantity = 1,
+                                unit = if (isArabic) "مجموعة" else "group",
+                                barcode = "GRP-${grp.id}",
+                                estimatedPriceDzd = grp.avgPrice
+                            )
+                        },
+                        onAddVariantToCart = { variant ->
+                            viewModel.addItem(
+                                name = variant.itemName,
+                                nameAr = variant.itemNameAr,
+                                category = group.category,
+                                quantity = 1,
+                                unit = "pcs",
+                                barcode = variant.barcode,
+                                estimatedPriceDzd = variant.priceDzd
+                            )
+                        },
+                        onEditVariantPrice = { variant ->
+                            reportItemDialog = variant.allPrices.firstOrNull() ?: MarketPrice(
+                                barcode = variant.barcode,
+                                itemName = variant.itemName,
+                                itemNameAr = variant.itemNameAr,
+                                storeName = variant.storeName,
+                                storeNameAr = variant.storeNameAr,
+                                priceDzd = variant.priceDzd,
+                                verifiedCount = 1
+                            )
+                        },
+                        modifier = Modifier
+                            .animateItem()
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
+        }
         }
     }
 
@@ -1508,6 +1585,7 @@ fun ProductGroupCard(
     modifier: Modifier = Modifier
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+    val catColor = categoryAccentColor(group.category, isLight)
     var isExpanded by remember { mutableStateOf(false) }
 
     val expandedState = if (autoExpand) true else isExpanded
@@ -1515,65 +1593,64 @@ fun ProductGroupCard(
     var justAddedGroup by remember { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
 
-    val cardBg = if (isLight) Color.White else Color(0xFF131D31)
-    val cardBorder = if (isLight) {
-        BorderStroke(1.2.dp, if (expandedState) CyanTintBorder else LightCardBorder)
-    } else {
-        BorderStroke(1.2.dp, if (expandedState) ElectricCyan.copy(alpha = 0.6f) else Color(0x28FFFFFF))
-    }
-
-    Box(
+    LiquidGlassCard(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(cardBg)
-            .border(cardBorder, RoundedCornerShape(16.dp))
-            .testTag("product_group_${group.id}")
+            .animateContentSize()
+            .testTag("product_group_${group.id}"),
+        backgroundColor = if (isLight) Color(0xF7FFFFFF) else Color(0xFF131D31),
+        glowColor = if (expandedState) catColor else catColor.copy(alpha = 0.45f)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(15.dp)
         ) {
-            // Top Row: Category tag + Variants Count
+            // Top Row: Color-Coded Category Pill + Variants Count Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Category pill
                 val categoryLabel = LocalizationUtil.getCategoryLabel(group.category, isArabic)
-                Box(
+                Row(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isLight) Color(0xFFEBF5FF) else Color(0x1F00E5FF))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .background(catColor.copy(alpha = if (isLight) 0.12f else 0.16f))
+                        .padding(horizontal = 8.dp, vertical = 3.5.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(catColor)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         text = categoryLabel,
-                        color = if (isLight) CyanTintText else ElectricCyan,
+                        color = catColor,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Medium
+                        fontWeight = FontWeight.Bold
                     )
                 }
 
-                // Variants count badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (isLight) Color(0xFFF1F5F9) else Color(0x14FFFFFF))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                        .background(if (isLight) Color(0xFFF1F5F9) else Color(0x16FFFFFF))
+                        .padding(horizontal = 8.dp, vertical = 3.5.dp)
                 ) {
                     Text(
                         text = if (isArabic) "${group.variants.size} أصناف متوفرة" else "${group.variants.size} Variants",
                         color = TextSecondary,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.Normal
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Main Title & Average Price Indicator Row
             Row(
@@ -1585,12 +1662,12 @@ fun ProductGroupCard(
                     Text(
                         text = if (isArabic) group.nameAr else group.nameEn,
                         color = TextPrimary,
-                        fontSize = 16.sp,
+                        fontSize = 16.5.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = if (isArabic) "متوسط المجموعة: ${LocalizationUtil.formatDzd(group.avgPrice, true)}" else "Group Average: ${LocalizationUtil.formatDzd(group.avgPrice, false)}",
                         color = if (isLight) MintTintText else EmeraldSavings,
@@ -1603,13 +1680,12 @@ fun ProductGroupCard(
 
                 Spacer(modifier = Modifier.width(10.dp))
 
-                // Price display (Average + Min-Max Range)
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = LocalizationUtil.formatDzd(group.avgPrice, isArabic),
-                        color = EmeraldSavings,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
+                        color = if (isLight) MintTintText else EmeraldSavings,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                     if (group.minPrice != group.maxPrice) {
                         Text(
@@ -1626,16 +1702,16 @@ fun ProductGroupCard(
             // Action Row: Quick Add Group Button + Expand Accordion Toggle
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Direct Add Group to Cart (With Average Price)
-                val addBg = if (justAddedGroup) EmeraldSavings else if (isLight) Color(0xFF0088CC) else ElectricCyan
-                val addContentColor = if (justAddedGroup) Color.White else if (isLight) Color.White else Color(0xFF091220)
+                val addBg = if (justAddedGroup) EmeraldSavings else if (isLight) Color(0xFF0284C7) else ElectricCyan
+                val addContentColor = if (justAddedGroup) Color.White else if (isLight) Color.White else Color(0xFF061322)
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .weight(1.25f)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(addBg)
                         .clickable {
                             try {
@@ -1644,7 +1720,7 @@ fun ProductGroupCard(
                             onAddGroupToCart(group)
                             justAddedGroup = true
                         }
-                        .padding(horizontal = 14.dp, vertical = 7.dp)
+                        .padding(horizontal = 12.dp, vertical = 9.dp)
                         .testTag("quick_add_group_${group.id}"),
                     contentAlignment = Alignment.Center
                 ) {
@@ -1658,41 +1734,44 @@ fun ProductGroupCard(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (justAddedGroup) {
-                                if (isArabic) "أُضيفت المجموعة للسلة ✓" else "Group Added ✓"
+                                if (isArabic) "أُضيفت للسلة ✓" else "Added to Cart ✓"
                             } else {
-                                if (isArabic) "إضافة المجموعة (${group.avgPrice.toInt()} د.ج)" else "Add Group (${group.avgPrice.toInt()} DZD)"
+                                if (isArabic) "إضافة (${group.avgPrice.toInt()} د.ج)" else "Add (${group.avgPrice.toInt()} DZD)"
                             },
                             color = addContentColor,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                // Expand / Collapse Details Toggle
-                val toggleBg = if (isLight) Color(0xFFF8FAFC) else Color(0x14FFFFFF)
-                val toggleBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x1EFFFFFF))
+                val toggleBg = if (isLight) Color(0xFFF1F5F9) else Color(0x18FFFFFF)
+                val toggleBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x22FFFFFF))
 
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
                         .background(toggleBg)
-                        .border(toggleBorder, RoundedCornerShape(10.dp))
+                        .border(toggleBorder, RoundedCornerShape(12.dp))
                         .clickable { isExpanded = !isExpanded }
-                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                        .padding(horizontal = 10.dp, vertical = 9.dp)
                         .testTag("expand_group_${group.id}"),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (expandedState) {
-                                if (isArabic) "إخفاء التفاصيل" else "Hide variants"
+                                if (isArabic) "إخفاء" else "Hide"
                             } else {
-                                if (isArabic) "كل الأصناف (${group.variants.size})" else "All variants (${group.variants.size})"
+                                if (isArabic) "الأصناف (${group.variants.size})" else "Variants (${group.variants.size})"
                             },
                             color = if (isLight) CyanTintText else ElectricCyan,
-                            fontSize = 11.5.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
@@ -1716,12 +1795,7 @@ fun ProductGroupCard(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(if (isLight) LightCardBorder else Color(0x1AFFFFFF))
-                    )
+                    HorizontalDivider(color = if (isLight) LightCardBorder else Color(0x1AFFFFFF))
                     Spacer(modifier = Modifier.height(10.dp))
 
                     Text(

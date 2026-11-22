@@ -68,6 +68,7 @@ fun WindGlowAppNameBanner(
     isArabic: Boolean,
     modifier: Modifier = Modifier,
     isGlowEnabled: Boolean = true,
+    blurProgress: Float = 0f,
     trailingAction: (@Composable () -> Unit)? = null
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
@@ -232,17 +233,36 @@ fun WindGlowAppNameBanner(
         }
         }
 
-        // LAYER 2: FOREGROUND CARD CONTAINER - Sits strictly in front of the glow layer
-        // Protected by modern soft-glass surface so title, icons, and text are crisp and unaffected by color blending
+        // LAYER 2: FOREGROUND APPLE LIQUID GLASS CAPSULE - Translucent frosted surface with specular rim
+        // Lets underlying scrolling content blur & refract softly while keeping title & icons razor-sharp
+        val clampedBlur = blurProgress.coerceIn(0f, 1f)
         val cardBg = if (isLight) {
-            Color(0xF0FFFFFF)
+            Color(0xFFFFFFFF).copy(alpha = 0.72f + 0.14f * clampedBlur)
         } else {
-            Color(0xE6101726)
+            Color(0xFF0E1729).copy(alpha = 0.64f + 0.18f * clampedBlur)
         }
         val cardBorder = if (isLight) {
-            BorderStroke(1.dp, CyanTintBorder.copy(alpha = 0.35f))
+            BorderStroke(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.92f),
+                        CyanTintBorder.copy(alpha = 0.35f + 0.25f * clampedBlur),
+                        Color.White.copy(alpha = 0.70f)
+                    )
+                )
+            )
         } else {
-            BorderStroke(1.dp, Color(0x3338BDF8))
+            BorderStroke(
+                1.dp,
+                Brush.linearGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.26f + 0.12f * clampedBlur),
+                        Color(0xFF38BDF8).copy(alpha = 0.22f + 0.18f * clampedBlur),
+                        Color.White.copy(alpha = 0.08f)
+                    )
+                )
+            )
         }
 
         Box(
@@ -251,8 +271,27 @@ fun WindGlowAppNameBanner(
                 .clip(RoundedCornerShape(20.dp))
                 .background(cardBg)
                 .border(cardBorder, RoundedCornerShape(20.dp))
-                .padding(horizontal = 14.dp, vertical = 10.dp)
         ) {
+            // Apple Liquid Glass top specular highlight hairline
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            if (isLight) {
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.95f), Color.Transparent)
+                            } else {
+                                listOf(Color.Transparent, Color.White.copy(alpha = 0.38f), ElectricCyan.copy(alpha = 0.32f), Color.Transparent)
+                            }
+                        )
+                    )
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -353,6 +392,7 @@ fun WindGlowAppNameBanner(
                     Spacer(modifier = Modifier.width(8.dp))
                     trailingAction()
                 }
+            }
             }
         }
     }

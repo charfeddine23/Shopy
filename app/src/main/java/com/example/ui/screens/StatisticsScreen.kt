@@ -1,6 +1,8 @@
 package com.example.ui.screens
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,11 +24,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Category
@@ -36,9 +39,9 @@ import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -60,10 +63,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.SpendingRecord
+import com.example.ui.components.AppleLiquidGlassTopBarLayout
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.NeonBadge
 import com.example.ui.components.ShopyDialog
+import com.example.ui.components.SouqSectionHeader
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CyanTintBg
 import com.example.ui.theme.CyanTintBorder
@@ -78,6 +83,9 @@ import com.example.ui.theme.NeonAmber
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.VioletAccent
+import com.example.ui.theme.VioletDark
+import com.example.ui.theme.categoryAccentColor
 import com.example.ui.viewmodel.ShoppingViewModel
 import com.example.util.LocalizationUtil
 import java.util.Calendar
@@ -133,92 +141,103 @@ fun StatisticsScreen(
             .sortedByDescending { it.second }
     }
 
-    Box(
+    val listState = rememberLazyListState()
+
+    AppleLiquidGlassTopBarLayout(
+        listState = listState,
         modifier = modifier
             .fillMaxSize()
-            .testTag("statistics_screen")
-    ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 100.dp, top = 12.dp)
-        ) {
-            // Header Bar
-            item {
+            .testTag("statistics_screen"),
+        defaultHeaderHeight = 72.dp,
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(if (isLight) Color.White else Color(0x28FFFFFF))
+                            .border(
+                                BorderStroke(1.dp, if (isLight) LightCardBorder else Color(0x28FFFFFF)),
+                                CircleShape
+                            )
+                            .testTag("statistics_back_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = if (isLight) CyanTintText else TextPrimary
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = if (isArabic) "الإحصائيات والإنفاق" else "Spending Analytics",
+                            color = TextPrimary,
+                            fontSize = 18.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = if (isArabic) "تحليل الميزانية وجولات التسوق" else "Budget insights & shopping trips",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Add Expense Quick Action
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.18f))
+                        .border(
+                            BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.55f)),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable { showManualAddDialog = true }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .testTag("add_manual_expense_button"),
+                    contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isLight) CyanTintBg else ElectricCyan.copy(alpha = 0.16f))
-                                .border(
-                                    BorderStroke(1.dp, if (isLight) CyanTintBorder else ElectricCyan.copy(alpha = 0.5f)),
-                                    RoundedCornerShape(12.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.TrendingUp,
-                                contentDescription = null,
-                                tint = if (isLight) CyanTintText else ElectricCyan,
-                                modifier = Modifier.size(24.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = if (isArabic) "الإحصائيات والإنفاق" else "Monthly Spending",
-                                color = TextPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = if (isArabic) "متابعة النفقات الشهرية وجولات التسوق" else "Track monthly trips & supermarket expenses",
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                    }
-
-                    // Add Expense Quick Action
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.18f))
-                            .border(
-                                BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.5f)),
-                                RoundedCornerShape(10.dp)
-                            )
-                            .clickable { showManualAddDialog = true }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                            .testTag("add_manual_expense_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                tint = if (isLight) MintTintText else EmeraldSavings,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = if (isArabic) "تسجيل نفقة" else "Log Trip",
-                                color = if (isLight) MintTintText else EmeraldSavings,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = null,
+                            tint = if (isLight) MintTintText else EmeraldSavings,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isArabic) "تسجيل نفقة" else "Log Trip",
+                            color = if (isLight) MintTintText else EmeraldSavings,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
-
+        }
+    ) { topPadding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 100.dp, top = topPadding + 4.dp)
+        ) {
             // Month Selector Filter Pills
             item {
                 Row(
@@ -283,13 +302,13 @@ fun StatisticsScreen(
                 }
             }
 
-            // Grand Total Spending Card (HUD)
+            // Grand Total Spending Executive Bento Card
             item {
                 LiquidGlassCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 6.dp),
-                    glowColor = ElectricCyan
+                    glowColor = if (isLight) VioletDark else VioletAccent
                 ) {
                     Column(modifier = Modifier.padding(18.dp)) {
                         Row(
@@ -297,32 +316,34 @@ fun StatisticsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = if (isArabic) "إجمالي الإنفاق للفترة المحددة" else "Total Period Spending",
                                     color = TextSecondary,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = LocalizationUtil.formatDzd(totalSpent, isArabic),
                                     color = TextPrimary,
-                                    fontSize = 28.sp,
-                                    fontWeight = FontWeight.Bold
+                                    style = MaterialTheme.typography.displayMedium.copy(fontSize = 28.sp),
+                                    fontWeight = FontWeight.ExtraBold
                                 )
                             }
 
                             NeonBadge(
-                                text = if (isArabic) "$tripCount جولات تسوق" else "$tripCount Trips",
+                                text = if (isArabic) "$tripCount جولات" else "$tripCount Trips",
                                 accentColor = ElectricCyan,
                                 icon = Icons.Default.Receipt
                             )
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
+                        HorizontalDivider(color = if (isLight) Color(0xFFE2EAF2) else Color(0x1CFFFFFF))
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                        // Quick 3 Metrics Row
+                        // Quick 3 Metrics Bento Row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -330,19 +351,19 @@ fun StatisticsScreen(
                             MetricPill(
                                 label = if (isArabic) "متوسط السلة" else "Avg Basket",
                                 value = LocalizationUtil.formatDzd(avgBasket, isArabic),
-                                color = EmeraldSavings,
+                                color = if (isLight) MintTintText else EmeraldSavings,
                                 modifier = Modifier.weight(1f)
                             )
                             MetricPill(
-                                label = if (isArabic) "المواد المشتراة" else "Items Bought",
+                                label = if (isArabic) "المواد المشتراة" else "Items",
                                 value = "$totalItems " + if (isArabic) "مادة" else "pcs",
-                                color = ElectricCyan,
+                                color = if (isLight) CyanTintText else ElectricCyan,
                                 modifier = Modifier.weight(1f)
                             )
                             MetricPill(
-                                label = if (isArabic) "المتاجر المعتمدة" else "Stores",
+                                label = if (isArabic) "المتاجر" else "Stores",
                                 value = "${filteredRecords.map { it.storeName }.distinct().size} " + if (isArabic) "متاجر" else "stores",
-                                color = NeonAmber,
+                                color = if (isLight) Color(0xFFD97706) else NeonAmber,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -359,28 +380,14 @@ fun StatisticsScreen(
                     glowColor = EmeraldSavings
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = if (isArabic) "توزيع الإنفاق عبر أسابيع الشهر" else "Weekly Spending Breakdown",
-                                color = TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(
-                                imageVector = Icons.Default.Insights,
-                                contentDescription = null,
-                                tint = EmeraldSavings,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                        SouqSectionHeader(
+                            icon = Icons.Default.Insights,
+                            title = if (isArabic) "توزيع الإنفاق الأسبوعي" else "Weekly Spending Trend",
+                            accentColor = if (isLight) MintTintText else EmeraldSavings
+                        )
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                        // 4 Weekly bars computed from actual record timestamps
                         val weeklyTotals = remember(filteredRecords) {
                             val buckets = doubleArrayOf(0.0, 0.0, 0.0, 0.0)
                             val cal = Calendar.getInstance()
@@ -409,16 +416,16 @@ fun StatisticsScreen(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(110.dp)
-                                .padding(horizontal = 8.dp),
+                                .height(120.dp)
+                                .padding(horizontal = 6.dp),
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.Bottom
                         ) {
                             weeks.forEach { (weekLabel, amount) ->
-                                val fraction = if (amount <= 0.0) 0.06f else (amount / maxWeekVal).toFloat().coerceIn(0.12f, 1f)
+                                val fraction = if (amount <= 0.0) 0.08f else (amount / maxWeekVal).toFloat().coerceIn(0.14f, 1f)
                                 val animatedHeight by animateFloatAsState(
                                     targetValue = fraction,
-                                    animationSpec = tween(durationMillis = 600),
+                                    animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessLow),
                                     label = "bar_anim"
                                 )
 
@@ -429,27 +436,35 @@ fun StatisticsScreen(
                                 ) {
                                     Text(
                                         text = "${amount.toInt()}",
-                                        color = TextSecondary,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.SemiBold
+                                        color = if (amount > 0) TextPrimary else TextMuted,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold
                                     )
-                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Spacer(modifier = Modifier.height(5.dp))
                                     Box(
                                         modifier = Modifier
-                                            .width(36.dp)
+                                            .width(38.dp)
                                             .fillMaxHeight(animatedHeight)
-                                            .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
+                                            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp))
                                             .background(
-                                                Brush.verticalGradient(
-                                                    listOf(EmeraldSavings, ElectricCyan)
-                                                )
+                                                if (amount > 0) {
+                                                    Brush.verticalGradient(listOf(EmeraldSavings, ElectricCyan))
+                                                } else {
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            if (isLight) Color(0xFFE2E8F0) else Color(0x22FFFFFF),
+                                                            if (isLight) Color(0xFFE2E8F0) else Color(0x14FFFFFF)
+                                                        )
+                                                    )
+                                                }
                                             )
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = weekLabel,
                                         color = TextSecondary,
-                                        fontSize = 10.sp
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
@@ -468,30 +483,23 @@ fun StatisticsScreen(
                         glowColor = NeonAmber
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = if (isArabic) "أعلى الفئات استهلاكاً للإنفاق" else "Top Expense Categories",
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Icon(
-                                    imageVector = Icons.Default.Category,
-                                    contentDescription = null,
-                                    tint = NeonAmber,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                            SouqSectionHeader(
+                                icon = Icons.Default.Category,
+                                title = if (isArabic) "أعلى الفئات إنفاقاً" else "Top Expense Categories",
+                                accentColor = NeonAmber
+                            )
 
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             categoryBreakdown.take(4).forEach { (category, amount) ->
                                 val pct = if (totalSpent > 0) (amount / totalSpent * 100).toInt() else 0
                                 val catLabel = LocalizationUtil.getCategoryLabel(category, isArabic)
+                                val catColor = categoryAccentColor(category, isLight)
+                                val animatedPct by animateFloatAsState(
+                                    targetValue = (pct / 100f).coerceIn(0.05f, 1f),
+                                    animationSpec = tween(durationMillis = 550),
+                                    label = "cat_bar_$category"
+                                )
 
                                 Column(modifier = Modifier.padding(vertical = 5.dp)) {
                                     Row(
@@ -499,37 +507,44 @@ fun StatisticsScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = catLabel,
-                                            color = TextPrimary,
-                                            fontSize = 12.5.sp,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(8.dp)
+                                                    .clip(CircleShape)
+                                                    .background(catColor)
+                                            )
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = catLabel,
+                                                color = TextPrimary,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
                                         Text(
                                             text = "${LocalizationUtil.formatDzd(amount, isArabic)} ($pct%)",
                                             color = TextSecondary,
-                                            fontSize = 11.5.sp
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
                                         )
                                     }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    LinearProgressIndicator(
-                                        progress = { (pct / 100f).coerceIn(0.05f, 1f) },
+                                    Spacer(modifier = Modifier.height(5.dp))
+                                    Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .height(6.dp)
-                                            .clip(RoundedCornerShape(3.dp)),
-                                        color = when (category) {
-                                            "Dairy" -> ElectricCyan
-                                            "Butchery", "Meat" -> Color(0xFFEF4444)
-                                            "Produce" -> EmeraldSavings
-                                            "Beverages", "HerbalDrinks" -> Color(0xFF38BDF8)
-                                            "Bakery" -> Color(0xFFF59E0B)
-                                            "Household" -> Color(0xFFA855F7)
-                                            "SweetsNuts" -> Color(0xFFEC4899)
-                                            else -> NeonAmber
-                                        },
-                                        trackColor = if (isLight) Color(0xFFE2E8F0) else Color(0x20FFFFFF)
-                                    )
+                                            .height(7.dp)
+                                            .clip(RoundedCornerShape(4.dp))
+                                            .background(if (isLight) Color(0xFFE2E8F0) else Color(0x20FFFFFF))
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth(animatedPct)
+                                                .fillMaxHeight()
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(catColor)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -539,55 +554,47 @@ fun StatisticsScreen(
 
             // History Section Title
             item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (isArabic) "سجل جولات التسوق المكتملة (${filteredRecords.size})" else "Completed Trips (${filteredRecords.size})",
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = if (isArabic) "تنقل تلقائياً عند إنهاء التسوق" else "Recorded on finish",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
+                SouqSectionHeader(
+                    icon = Icons.Default.ShoppingBag,
+                    title = if (isArabic) "جولات التسوق المكتملة (${filteredRecords.size})" else "Completed Trips (${filteredRecords.size})",
+                    subtitle = if (isArabic) "تسجّل تلقائياً عند إنهاء التسوق" else "Recorded automatically on trip completion",
+                    accentColor = if (isLight) CyanTintText else ElectricCyan,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
             }
 
             // Completed Shopping Trips List
             if (filteredRecords.isEmpty()) {
                 item {
-                    Box(
+                    LiquidGlassCard(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 16.dp, vertical = 6.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(28.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.ShoppingBag,
                                 contentDescription = null,
                                 tint = TextMuted,
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(44.dp)
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
                                 text = if (isArabic) "لا توجد جولات تسوق مسجلة لهذا الشهر" else "No shopping trips recorded for this month",
                                 color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.SemiBold
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = if (isArabic) "اضغط على \"إنهاء التسوق\" في السلة لنقل النفقات فوراً إلى هنا" else "Press 'Finish Shopping' in cart to auto-log trips here",
+                                text = if (isArabic) "اضغط على \"إنهاء التسوق\" في الرئيسية لنقل النفقات فوراً" else "Tap 'Finish Trip' on Home to log trips here",
                                 color = TextMuted,
-                                fontSize = 11.sp
+                                fontSize = 11.5.sp
                             )
                         }
                     }
@@ -598,7 +605,8 @@ fun StatisticsScreen(
                         record = record,
                         isArabic = isArabic,
                         isLight = isLight,
-                        onDelete = { recordToDelete = record }
+                        onDelete = { recordToDelete = record },
+                        modifier = Modifier.animateItem()
                     )
                 }
             }
@@ -699,22 +707,19 @@ private fun TripRecordCard(
     record: SpendingRecord,
     isArabic: Boolean,
     isLight: Boolean,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val cardBg = if (isLight) Color.White else Color(0x20141E30)
-    val cardBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x24FFFFFF))
-
-    Box(
-        modifier = Modifier
+    LiquidGlassCard(
+        modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(cardBg)
-            .border(cardBorder, RoundedCornerShape(14.dp))
-            .padding(14.dp)
+            .padding(horizontal = 16.dp, vertical = 5.dp),
+        glowColor = EmeraldSavings.copy(alpha = 0.35f)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
@@ -726,9 +731,9 @@ private fun TripRecordCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.2f))
+                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.18f))
                         .border(
-                            BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.6f)),
+                            BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.55f)),
                             CircleShape
                         ),
                     contentAlignment = Alignment.Center
@@ -773,16 +778,25 @@ private fun TripRecordCard(
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = LocalizationUtil.formatDzd(record.totalSpentDzd, isArabic),
-                    color = if (isLight) MintTintText else EmeraldSavings,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.15f))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = LocalizationUtil.formatDzd(record.totalSpentDzd, isArabic),
+                        color = if (isLight) MintTintText else EmeraldSavings,
+                        fontSize = 13.5.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
 
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(30.dp)
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,

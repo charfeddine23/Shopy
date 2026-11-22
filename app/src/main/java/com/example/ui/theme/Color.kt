@@ -92,3 +92,21 @@ val GlassBorder: Color
 
 // Supermarket Mode High Contrast
 val CheckedGreen = Color(0xFF10B981)
+
+val VioletAccent = Color(0xFFA78BFA)
+val VioletDark = Color(0xFF7C3AED)
+
+fun categoryAccentColor(category: String, isLight: Boolean): Color {
+    return when (category.lowercase()) {
+        "produce" -> if (isLight) EmeraldDark else EmeraldSavings
+        "dairy" -> if (isLight) CyanTintText else ElectricCyan
+        "bakery" -> if (isLight) PeachTintText else NeonAmber
+        "butchery" -> if (isLight) Color(0xFFDC2626) else Color(0xFFFF6B6B)
+        "beverages" -> if (isLight) Color(0xFF2563EB) else Color(0xFF60A5FA)
+        "household" -> if (isLight) VioletDark else VioletAccent
+        "herbaldrinks" -> if (isLight) Color(0xFF0D9488) else Color(0xFF2DD4BF)
+        "sweetsnuts" -> if (isLight) Color(0xFFDB2777) else Color(0xFFF472B6)
+        else -> if (isLight) CyanTintText else ElectricCyan
+    }
+}
+

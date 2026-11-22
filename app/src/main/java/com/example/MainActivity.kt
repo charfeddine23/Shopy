@@ -19,6 +19,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -80,6 +81,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -107,6 +109,7 @@ import com.example.ui.components.AppUpdateOverlay
 import com.example.ui.components.FluidWaterState
 import com.example.ui.components.LiquidGlassBackground
 import com.example.ui.components.LocalPagerSwipeBlockController
+import com.example.ui.components.LocalPreservedTopInset
 import com.example.ui.components.LocalTutorialInteractionBus
 import com.example.ui.components.LocalTutorialTargetRegistry
 import com.example.ui.components.QrShareDialog
@@ -458,7 +461,8 @@ fun ShopyPulseApp(
 
     CompositionLocalProvider(
         LocalTutorialTargetRegistry provides tutorialTargetRegistry,
-        LocalTutorialInteractionBus provides tutorialInteractionBus
+        LocalTutorialInteractionBus provides tutorialInteractionBus,
+        LocalPreservedTopInset provides preservedTopPaddingDp
     ) {
     LiquidGlassBackground(isDarkMode = isDarkMode) {
         Scaffold(
@@ -560,7 +564,6 @@ fun ShopyPulseApp(
                         tutorialInteractionBus.reportAction(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE)
                     }
                 )
-                .padding(top = preservedTopPaddingDp)
         ) { innerPadding ->
             CompositionLocalProvider(
                 LocalPagerSwipeBlockController provides pagerSwipeBlockController
@@ -590,7 +593,8 @@ fun ShopyPulseApp(
                                 Screen.HOME -> HomeScreen(
                                     viewModel = viewModel,
                                     onNavigateToPriceComparison = { viewModel.setCurrentScreen(Screen.PRICES.name) },
-                                    onNavigateToSupermarketMode = { viewModel.setCurrentScreen(Screen.SUPERMARKET.name) }
+                                    onNavigateToSupermarketMode = { viewModel.setCurrentScreen(Screen.SUPERMARKET.name) },
+                                    onNavigateToStatistics = { viewModel.setCurrentScreen(Screen.STATISTICS.name) }
                                 )
 
                                 Screen.PRICES -> PriceComparisonScreen(
@@ -717,16 +721,16 @@ fun LiquidGlassBottomNavBar(
     val latestOnSelectScreen by rememberUpdatedState(onSelectScreen)
 
     val dockBackground by animateColorAsState(
-        targetValue = if (isDarkMode) Color(0xFF0E1626) else LightCardSurface,
+        targetValue = if (isDarkMode) Color(0xDB0D1526) else Color(0xEBFFFFFF),
         animationSpec = tween(durationMillis = 280),
         label = "dock_bg_color"
     )
     val dockBorderColor by animateColorAsState(
-        targetValue = if (isDarkMode) Color(0x33475569) else LightCardBorder,
+        targetValue = if (isDarkMode) Color(0x3DFFFFFF) else Color(0xFFD6E4F0),
         animationSpec = tween(durationMillis = 280),
         label = "dock_border_color"
     )
-    val unselectedTint = if (isDarkMode) Color(0xFF64748B) else TextSecondaryLight
+    val unselectedTint = if (isDarkMode) Color(0xFF7B8CA4) else TextSecondaryLight
     val homeAccent = if (isDarkMode) ElectricCyan else ElectricCyanDark
     val pricesAccent = if (isDarkMode) EmeraldSavings else EmeraldDark
     val settingsAccent = if (isDarkMode) NeonAmber else PeachTintText
@@ -885,20 +889,26 @@ private fun RowScope.NavItem(
             .testTag(testTag),
         contentAlignment = Alignment.Center
     ) {
+        val pillScale by animateFloatAsState(
+            targetValue = if (isSelected) 1.06f else 1.0f,
+            animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMediumLow),
+            label = "nav_pill_scale"
+        )
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Icon Pill Container (Glows when selected, stays fixed in place)
+            // Icon Pill Container (Glows & bounces gently when selected, stays fixed in place)
             Box(
                 modifier = Modifier
-                    .size(width = 46.dp, height = 28.dp)
+                    .scale(pillScale)
+                    .size(width = 48.dp, height = 29.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .then(
                         if (isSelected) {
                             Modifier
                                 .background(accentColor.copy(alpha = 0.16f))
-                                .border(BorderStroke(1.2.dp, accentColor), RoundedCornerShape(14.dp))
+                                .border(BorderStroke(1.2.dp, accentColor.copy(alpha = 0.85f)), RoundedCornerShape(14.dp))
                         } else {
                             Modifier
                         }

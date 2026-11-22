@@ -16,7 +16,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -30,31 +29,30 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.SwipeVertical
 import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -69,24 +67,26 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.BuildConfig
+import com.example.ui.components.AppleLiquidGlassTopBarLayout
 import com.example.ui.components.CircularRevealThemeOverlay
+import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.QrShareDialog
 import com.example.ui.components.ShopyDialog
+import com.example.ui.components.SouqSectionHeader
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CyanTintBg
 import com.example.ui.theme.CyanTintBorder
@@ -94,14 +94,13 @@ import com.example.ui.theme.CyanTintText
 import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
 import com.example.ui.theme.LightCardBorder
+import com.example.ui.theme.MintTintText
 import com.example.ui.theme.NeonAmber
-import com.example.ui.theme.PeachTintBg
-import com.example.ui.theme.PeachTintBorder
-import com.example.ui.theme.PeachTintText
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
-import com.example.BuildConfig
+import com.example.ui.theme.VioletAccent
+import com.example.ui.theme.VioletDark
 import com.example.ui.viewmodel.ShoppingViewModel
 import com.example.util.ApkDownloadState
 import com.example.util.AppUpdateStatus
@@ -110,11 +109,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-/**
- * Production-ready Settings Screen for 'Shopy Pulse' matching the Dark Slate
- * Neumorphic & Soft Glass Engine design system with custom glowing switch toggles,
- * section headers, and modular architecture.
- */
 @Composable
 fun SettingsScreen(
     viewModel: ShoppingViewModel,
@@ -139,12 +133,10 @@ fun SettingsScreen(
     var showDriveDialog by remember { mutableStateOf(false) }
     val ioScope = rememberCoroutineScope()
 
-    // Circular Reveal animation states for Light/Dark/Auto mode transition
     var revealTargetDark by remember { mutableStateOf<Boolean?>(null) }
     var revealTargetAuto by remember { mutableStateOf<Boolean?>(null) }
     var switchCenterOffset by remember { mutableStateOf(Offset.Zero) }
 
-    // Storage Access Framework Launcher to save backup file (Google Drive / local)
     val createDocLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
@@ -170,7 +162,6 @@ fun SettingsScreen(
         }
     }
 
-    // Storage Access Framework Launcher to restore backup file (Google Drive / local)
     val openDocLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
@@ -207,181 +198,298 @@ fun SettingsScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    val listState = rememberLazyListState()
+    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+
+    AppleLiquidGlassTopBarLayout(
+        listState = listState,
+        modifier = modifier.fillMaxSize(),
+        defaultHeaderHeight = 68.dp,
+        topBar = {
+            SettingsScreenHeader(isArabic = isArabic)
+        }
+    ) { topPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topPadding + 4.dp, bottom = 104.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Screen Header (without back arrow, title strictly on one line)
+            // Section 1: Language & Theme Mode (Unified Apple Glass Card)
             item {
-                SettingsScreenHeader(
-                    isArabic = isArabic
-                )
-            }
+                val themeAccent = when {
+                    isAutoThemeEnabled -> EmeraldSavings
+                    isEffectiveDarkMode -> ElectricCyan
+                    else -> NeonAmber
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SouqSectionHeader(
+                        icon = Icons.Default.Palette,
+                        title = if (isArabic) "اللغة والمظهر" else "Language & Appearance",
+                        subtitle = if (isArabic) "تخصيص لغة التطبيق والسمة البصرية" else "Display language and color theme",
+                        accentColor = if (isLight) CyanTintText else ElectricCyan
+                    )
 
-            // 1. Language Selection Section (clean, compact, no large container)
-            item {
-                LanguageSelectionSection(
-                    isArabic = isArabic,
-                    onLanguageSelect = { arabicSelected ->
-                        viewModel.setLanguage(arabicSelected)
-                    }
-                )
-            }
-
-            // 2. Theme Mode Section (with Custom Glowing Switch Toggle + Auto System Sync Button)
-            item {
-                ThemeModeSection(
-                    isDarkMode = isEffectiveDarkMode,
-                    isAutoTheme = isAutoThemeEnabled,
-                    isArabic = isArabic,
-                    onDarkModeChange = { darkSelected ->
-                        if (revealTargetDark == null) {
-                            if (darkSelected != isEffectiveDarkMode) {
-                                revealTargetAuto = false
-                                revealTargetDark = darkSelected
-                            } else {
-                                viewModel.setAutoThemeEnabled(false)
-                                viewModel.setDarkMode(darkSelected)
+                    LiquidGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        glowColor = themeAccent.copy(alpha = 0.45f)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                CompactLanguagePill(
+                                    title = "العربية",
+                                    isSelected = isArabic,
+                                    onClick = { viewModel.setLanguage(true) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("language_arabic")
+                                )
+                                CompactLanguagePill(
+                                    title = "English",
+                                    isSelected = !isArabic,
+                                    onClick = { viewModel.setLanguage(false) },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .testTag("language_english")
+                                )
                             }
-                        }
-                    },
-                    onAutoToggle = {
-                        if (revealTargetDark == null) {
-                            val nextAuto = !isAutoThemeEnabled
-                            if (nextAuto) {
-                                if (systemInDark != isEffectiveDarkMode) {
-                                    revealTargetAuto = true
-                                    revealTargetDark = systemInDark
-                                } else {
-                                    viewModel.setAutoThemeEnabled(true)
+
+                            Spacer(modifier = Modifier.height(14.dp))
+                            SettingsGroupDivider(isLight = isLight)
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            ThemeModeRow(
+                                isDarkMode = isEffectiveDarkMode,
+                                isAutoTheme = isAutoThemeEnabled,
+                                isArabic = isArabic,
+                                accentColor = themeAccent,
+                                onDarkModeChange = { darkSelected ->
+                                    if (revealTargetDark == null) {
+                                        if (darkSelected != isEffectiveDarkMode) {
+                                            revealTargetAuto = false
+                                            revealTargetDark = darkSelected
+                                        } else {
+                                            viewModel.setAutoThemeEnabled(false)
+                                            viewModel.setDarkMode(darkSelected)
+                                        }
+                                    }
+                                },
+                                onAutoToggle = {
+                                    if (revealTargetDark == null) {
+                                        val nextAuto = !isAutoThemeEnabled
+                                        if (nextAuto) {
+                                            if (systemInDark != isEffectiveDarkMode) {
+                                                revealTargetAuto = true
+                                                revealTargetDark = systemInDark
+                                            } else {
+                                                viewModel.setAutoThemeEnabled(true)
+                                            }
+                                        } else {
+                                            viewModel.setDarkMode(isEffectiveDarkMode)
+                                            viewModel.setAutoThemeEnabled(false)
+                                        }
+                                    }
+                                },
+                                onSwitchPositionChanged = { center ->
+                                    switchCenterOffset = center
                                 }
-                            } else {
-                                viewModel.setDarkMode(isEffectiveDarkMode)
-                                viewModel.setAutoThemeEnabled(false)
-                            }
-                        }
-                    },
-                    onSwitchPositionChanged = { center ->
-                        switchCenterOffset = center
-                    }
-                )
-            }
-
-            // 2b. Dynamic App Title Glow Effect Toggle
-            item {
-                DynamicGlowToggleSection(
-                    isEnabled = isDynamicGlowEnabled,
-                    isArabic = isArabic,
-                    onToggleChange = { enabled ->
-                        viewModel.setDynamicGlowEnabled(enabled)
-                    }
-                )
-            }
-
-            // 2c. Liquid Glass Dock Swipe Effect Toggle
-            item {
-                LiquidDockSwipeToggleSection(
-                    isEnabled = isLiquidDockSwipeEnabled,
-                    isArabic = isArabic,
-                    onToggleChange = { enabled ->
-                        viewModel.setLiquidDockSwipeEnabled(enabled)
-                    }
-                )
-            }
-
-            // 2d. Full Screen Mode Toggle (Hide Top Phone Status Bar)
-            item {
-                FullScreenToggleSection(
-                    isEnabled = isFullScreenEnabled,
-                    isArabic = isArabic,
-                    onToggleChange = { enabled ->
-                        viewModel.setFullScreenEnabled(enabled)
-                    }
-                )
-            }
-
-            // 2e. Two-Finger Swipe Full Screen Gesture Toggle
-            item {
-                TwoFingerFullScreenSwipeToggleSection(
-                    isEnabled = isTwoFingerFullScreenSwipeEnabled,
-                    isArabic = isArabic,
-                    onToggleChange = { enabled ->
-                        viewModel.setTwoFingerFullScreenSwipeEnabled(enabled)
-                    }
-                )
-            }
-
-            // 3. QR Code Offline Sync Section (single clean action button to transfer)
-            item {
-                QrCodeOfflineSyncSection(
-                    isArabic = isArabic,
-                    onOpenTransfer = {
-                        qrDialogInitialMode = false
-                        showQrDialog = true
-                    }
-                )
-            }
-
-            // 4. Google Drive Cloud Backup Section (single clean action button to drive)
-            item {
-                GoogleDriveBackupSection(
-                    isArabic = isArabic,
-                    onOpenDrive = {
-                        showDriveDialog = true
-                    }
-                )
-            }
-
-            // 4b. In-App Update Section
-            item {
-                AppUpdateSection(
-                    isArabic = isArabic,
-                    updateStatus = updateStatus,
-                    apkDownloadState = apkDownloadState,
-                    onOpenUpdate = {
-                        when {
-                            apkDownloadState is ApkDownloadState.Downloaded ||
-                                apkDownloadState is ApkDownloadState.RequiresInstallPermission -> {
-                                viewModel.installDownloadedApk(context)
-                            }
-                            updateStatus is AppUpdateStatus.UpdateAvailable -> {
-                                viewModel.openUpdateOverlayIfAvailable()
-                            }
-                            else -> {
-                                viewModel.checkForUpdates(autoOpenOverlay = true, userInitiated = true)
-                            }
+                            )
                         }
                     }
-                )
+                }
             }
 
-            // 4c. Interactive App Tutorial Guide
+            // Section 2: Visual Effects & Smart Gestures (All 4 toggles in one card)
             item {
-                SingleActionNavButton(
-                    icon = Icons.Default.AutoAwesome,
-                    title = if (isArabic) "الدليل التفاعلي لشرح التطبيق" else "Interactive App Tutorial",
-                    accentColor = ElectricCyan,
-                    onClick = { viewModel.openTutorial() },
-                    testTag = "open_tutorial_button"
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SouqSectionHeader(
+                        icon = Icons.Default.AutoAwesome,
+                        title = if (isArabic) "التأثيرات والإيماءات الذكية" else "Visuals & Smart Gestures",
+                        subtitle = if (isArabic) "تخصيص الحركة والانسيابية وملء الشاشة" else "Fluid animations, water physics & gestures",
+                        accentColor = if (isLight) VioletDark else VioletAccent
+                    )
+
+                    LiquidGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        glowColor = if (isLight) VioletDark.copy(alpha = 0.35f) else ElectricCyan.copy(alpha = 0.35f)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SettingsToggleRow(
+                                icon = Icons.Default.AutoAwesome,
+                                title = if (isArabic) "التأثير الحركي لاسم التطبيق" else "App Title Dynamic Glow",
+                                subtitle = if (isArabic) "تدرّج ضوئي متدفق في الشريط العلوي" else "Subtle animated specular header glow",
+                                checked = isDynamicGlowEnabled,
+                                accentColor = ElectricCyan,
+                                onCheckedChange = { viewModel.setDynamicGlowEnabled(it) },
+                                switchTestTag = "dynamic_glow_switch"
+                            )
+
+                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
+
+                            SettingsToggleRow(
+                                icon = Icons.Default.WaterDrop,
+                                title = if (isArabic) "فيزياء المياه في الدوك السفلي" else "Bottom Dock Fluid Water",
+                                subtitle = if (isArabic) "تموجات المياه والتنقل بالسحب عبر الدوك" else "Water ripples & fluid swipe navigation",
+                                checked = isLiquidDockSwipeEnabled,
+                                accentColor = ElectricCyan,
+                                onCheckedChange = { viewModel.setLiquidDockSwipeEnabled(it) },
+                                switchTestTag = "liquid_dock_swipe_switch"
+                            )
+
+                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
+
+                            SettingsToggleRow(
+                                icon = if (isFullScreenEnabled) Icons.Default.Fullscreen else Icons.Default.FullscreenExit,
+                                title = if (isArabic) "وضع ملء الشاشة" else "Full Screen Mode",
+                                subtitle = if (isArabic) "إخفاء شريط الهاتف العلوي بالكامل" else "Hide top status bar completely",
+                                checked = isFullScreenEnabled,
+                                accentColor = EmeraldSavings,
+                                onCheckedChange = { viewModel.setFullScreenEnabled(it) },
+                                switchTestTag = "full_screen_switch"
+                            )
+
+                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
+
+                            SettingsToggleRow(
+                                icon = Icons.Default.SwipeVertical,
+                                title = if (isArabic) "السحب بإصبعين لملء الشاشة" else "Two-Finger Full Screen Swipe",
+                                subtitle = if (isArabic) "اسحب بإصبعين للأعلى للتفعيل وللأسفل للإلغاء" else "Swipe 2 fingers up to enable, down to exit",
+                                checked = isTwoFingerFullScreenSwipeEnabled,
+                                accentColor = EmeraldSavings,
+                                onCheckedChange = { viewModel.setTwoFingerFullScreenSwipeEnabled(it) },
+                                switchTestTag = "two_finger_fullscreen_swipe_switch"
+                            )
+                        }
+                    }
+                }
             }
 
-            // 5. App & Developer Info Section ("Developed by Kahlessenane Charfeddine")
+            // Section 3: Sync, Cloud Backup, Updates & Tutorial
             item {
-                DeveloperInfoSection(
-                    isArabic = isArabic
-                )
+                val isChecking = updateStatus is AppUpdateStatus.Checking
+                val availableUpdate = updateStatus as? AppUpdateStatus.UpdateAvailable
+                val cleanVersion = availableUpdate?.latestVersion?.trim()?.removePrefix("v")?.removePrefix("V").orEmpty()
+                val updateTitle = when (apkDownloadState) {
+                    is ApkDownloadState.Downloading -> {
+                        val s = apkDownloadState as ApkDownloadState.Downloading
+                        val pct = if (s.progressPercent >= 0) "${s.progressPercent}%" else "..."
+                        if (isArabic) "جاري تحميل التحديث ($pct)" else "Downloading Update ($pct)"
+                    }
+                    is ApkDownloadState.Downloaded,
+                    is ApkDownloadState.RequiresInstallPermission ->
+                        if (isArabic) "التحديث جاهز للتثبيت" else "Update Ready to Install"
+                    else -> when (updateStatus) {
+                        is AppUpdateStatus.Checking -> if (isArabic) "جاري التحقق..." else "Checking..."
+                        is AppUpdateStatus.UpdateAvailable ->
+                            if (isArabic) "تحديث جديد متاح ($cleanVersion)" else "New Update Available ($cleanVersion)"
+                        is AppUpdateStatus.Error ->
+                            if (isArabic) "تعذر التحقق • اضغط للمحاولة" else "Check failed • Tap to retry"
+                        is AppUpdateStatus.Idle ->
+                            if (isArabic) "التحقق من وجود تحديثات" else "Check for Updates"
+                        else ->
+                            if (isArabic) "التطبيق محدث إلى آخر نسخة" else "App is up to date"
+                    }
+                }
+                val updateAccent = when {
+                    isChecking -> ElectricCyan
+                    availableUpdate != null || updateStatus is AppUpdateStatus.Error -> NeonAmber
+                    updateStatus is AppUpdateStatus.Idle -> ElectricCyan
+                    else -> EmeraldSavings
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SouqSectionHeader(
+                        icon = Icons.Default.CloudDone,
+                        title = if (isArabic) "المزامنة، النسخ السحابي والتحديثات" else "Sync, Backup & Updates",
+                        subtitle = if (isArabic) "مشاركة القوائم والنسخ الاحتياطي وإصدار التطبيق" else "Share lists, cloud backup & app version",
+                        accentColor = if (isLight) MintTintText else EmeraldSavings
+                    )
+
+                    LiquidGlassCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        glowColor = EmeraldSavings.copy(alpha = 0.35f)
+                    ) {
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            SettingsActionRow(
+                                icon = Icons.Default.QrCode,
+                                title = if (isArabic) "نقل ومشاركة القوائم (QR Code)" else "Transfer & Share Lists via QR",
+                                subtitle = if (isArabic) "مشاركة فورية بدون إنترنت بين الأجهزة" else "Instant offline transfer between phones",
+                                accentColor = if (isLight) MintTintText else EmeraldSavings,
+                                onClick = {
+                                    qrDialogInitialMode = false
+                                    showQrDialog = true
+                                },
+                                testTag = "open_qr_transfer_button"
+                            )
+
+                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
+
+                            SettingsActionRow(
+                                icon = Icons.Default.CloudDone,
+                                title = if (isArabic) "النسخ الاحتياطي (Google Drive)" else "Google Drive Backup",
+                                subtitle = if (lastBackupDate.isNotBlank()) {
+                                    if (isArabic) "آخر نسخة: $lastBackupDate" else "Last backup: $lastBackupDate"
+                                } else {
+                                    if (isArabic) "حفظ واستعادة القوائم والأسعار" else "Export or restore lists & prices"
+                                },
+                                accentColor = if (isLight) CyanTintText else ElectricCyan,
+                                onClick = { showDriveDialog = true },
+                                testTag = "open_google_drive_button"
+                            )
+
+                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
+
+                            SettingsActionRow(
+                                icon = Icons.Default.SystemUpdate,
+                                title = updateTitle,
+                                subtitle = if (isArabic) "الإصدار الحالي v${BuildConfig.VERSION_NAME}" else "Current version v${BuildConfig.VERSION_NAME}",
+                                accentColor = updateAccent,
+                                isLoading = isChecking,
+                                onClick = {
+                                    when {
+                                        apkDownloadState is ApkDownloadState.Downloaded ||
+                                            apkDownloadState is ApkDownloadState.RequiresInstallPermission -> {
+                                            viewModel.installDownloadedApk(context)
+                                        }
+                                        updateStatus is AppUpdateStatus.UpdateAvailable -> {
+                                            viewModel.openUpdateOverlayIfAvailable()
+                                        }
+                                        else -> {
+                                            viewModel.checkForUpdates(autoOpenOverlay = true, userInitiated = true)
+                                        }
+                                    }
+                                },
+                                testTag = "open_app_update_button"
+                            )
+
+                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
+
+                            SettingsActionRow(
+                                icon = Icons.Default.AutoAwesome,
+                                title = if (isArabic) "الدليل التفاعلي لشرح التطبيق" else "Interactive App Tutorial",
+                                subtitle = if (isArabic) "جولة سريعة لاستكشاف جميع المزايا" else "Guided walkthrough of all features",
+                                accentColor = if (isLight) VioletDark else VioletAccent,
+                                onClick = { viewModel.openTutorial() },
+                                testTag = "open_tutorial_button"
+                            )
+                        }
+                    }
+                }
             }
 
-            // Extra bottom spacing for Floating Bottom Navigation Bar
+            // Section 4: App & Developer Info Section
             item {
-                Spacer(modifier = Modifier.height(36.dp))
+                DeveloperInfoSection(isArabic = isArabic)
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 
-        // Dedicated Offline QR Share & Import Dialog
         if (showQrDialog) {
             QrShareDialog(
                 payload = viewModel.getQrSharePayload(),
@@ -394,7 +502,6 @@ fun SettingsScreen(
             )
         }
 
-        // Dedicated Google Drive Backup & Restore Dialog
         if (showDriveDialog) {
             GoogleDriveDialog(
                 isArabic = isArabic,
@@ -409,7 +516,6 @@ fun SettingsScreen(
             )
         }
 
-        // Circular Reveal Transition Animation Overlay for Light/Dark/Auto Mode Switch
         val pendingTargetDark = revealTargetDark
         if (pendingTargetDark != null) {
             val pendingTargetAuto = revealTargetAuto
@@ -431,71 +537,42 @@ fun SettingsScreen(
     }
 }
 
-/**
- * Screen Top Header without Back Arrow, title strictly on one line.
- */
 @Composable
-private fun SettingsScreenHeader(
-    isArabic: Boolean
-) {
-    Box(
+private fun SettingsScreenHeader(isArabic: Boolean) {
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 4.dp, bottom = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Text(
             text = if (isArabic) "الإعدادات" else "Settings",
             color = TextPrimary,
-            fontSize = 20.sp,
+            fontSize = 21.sp,
             fontWeight = FontWeight.ExtraBold,
             letterSpacing = (-0.3).sp,
             maxLines = 1,
             softWrap = false,
             overflow = TextOverflow.Clip
         )
+        Text(
+            text = if (isArabic) "تخصيص المظهر، المزامنة، والإيماءات" else "Preferences, sync & gestures",
+            color = TextSecondary,
+            fontSize = 11.5.sp,
+            maxLines = 1
+        )
     }
 }
 
-/**
- * 1. Language Selection Section (compact, no large outer card)
- */
 @Composable
-private fun LanguageSelectionSection(
-    isArabic: Boolean,
-    onLanguageSelect: (Boolean) -> Unit
+private fun SettingsGroupDivider(
+    isLight: Boolean,
+    horizontalPadding: androidx.compose.ui.unit.Dp = 0.dp
 ) {
-    Column {
-        SectionHeader(
-            icon = Icons.Default.Translate,
-            title = if (isArabic) "إعدادات اللغة" else "Language Selection",
-            accentColor = ElectricCyan
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            CompactLanguagePill(
-                title = "العربية",
-                isSelected = isArabic,
-                onClick = { onLanguageSelect(true) },
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("language_arabic")
-            )
-
-            CompactLanguagePill(
-                title = "English",
-                isSelected = !isArabic,
-                onClick = { onLanguageSelect(false) },
-                modifier = Modifier
-                    .weight(1f)
-                    .testTag("language_english")
-            )
-        }
-    }
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = horizontalPadding),
+        thickness = 1.dp,
+        color = if (isLight) Color(0xFFE6EDF5) else Color(0x18FFFFFF)
+    )
 }
 
 @Composable
@@ -506,15 +583,18 @@ private fun CompactLanguagePill(
     modifier: Modifier = Modifier
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val pillBg = if (isLight) {
-        if (isSelected) CyanTintBg else Color.White
-    } else {
-        if (isSelected) Color(0x2800E5FF) else Color(0x181E293B)
-    }
+    val pillBg by animateColorAsState(
+        targetValue = if (isLight) {
+            if (isSelected) CyanTintBg else Color(0xFFF8FAFC)
+        } else {
+            if (isSelected) Color(0x2800E5FF) else Color(0x181E293B)
+        },
+        label = "lang_pill_bg"
+    )
     val pillBorder = if (isLight) {
         if (isSelected) BorderStroke(1.5.dp, CyanTintBorder) else BorderStroke(1.dp, LightCardBorder)
     } else {
-        if (isSelected) BorderStroke(1.5.dp, ElectricCyan) else BorderStroke(1.dp, Color(0x33475569))
+        if (isSelected) BorderStroke(1.5.dp, ElectricCyan) else BorderStroke(1.dp, Color(0x2AFFFFFF))
     }
     val titleColor = if (isLight) {
         if (isSelected) CyanTintText else TextPrimary
@@ -524,10 +604,10 @@ private fun CompactLanguagePill(
 
     Box(
         modifier = modifier
-            .height(44.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .height(48.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(pillBg)
-            .border(pillBorder, RoundedCornerShape(12.dp))
+            .border(pillBorder, RoundedCornerShape(14.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = true, color = ElectricCyan),
@@ -560,460 +640,301 @@ private fun CompactLanguagePill(
     }
 }
 
-/**
- * 2. Theme Mode Section
- * Includes custom glowing switch toggle for instant Night/Day mode switching
- * plus an Auto button alongside it for automatic system theme following.
- */
 @Composable
-private fun ThemeModeSection(
+private fun ThemeModeRow(
     isDarkMode: Boolean,
     isAutoTheme: Boolean,
     isArabic: Boolean,
+    accentColor: Color,
     onDarkModeChange: (Boolean) -> Unit,
     onAutoToggle: () -> Unit,
-    onSwitchPositionChanged: (Offset) -> Unit = {}
+    onSwitchPositionChanged: (Offset) -> Unit
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val accentColor = when {
-        isAutoTheme -> EmeraldSavings
-        isDarkMode -> ElectricCyan
-        else -> NeonAmber
-    }
-
-    Column {
-        SectionHeader(
-            icon = if (isAutoTheme) Icons.Default.BrightnessAuto else if (isDarkMode) Icons.Default.DarkMode else Icons.Default.LightMode,
-            title = if (isArabic) "المظهر والسمات" else "Theme & Mode",
-            accentColor = NeonAmber
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        NeumorphicGlassCard(
-            modifier = Modifier.fillMaxWidth(),
-            glowColor = accentColor.copy(alpha = 0.30f)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
         ) {
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(accentColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(accentColor.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = when {
-                                isAutoTheme -> Icons.Default.BrightnessAuto
-                                isDarkMode -> Icons.Default.DarkMode
-                                else -> Icons.Default.LightMode
-                            },
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(17.dp)
+                Icon(
+                    imageVector = when {
+                        isAutoTheme -> Icons.Default.BrightnessAuto
+                        isDarkMode -> Icons.Default.DarkMode
+                        else -> Icons.Default.LightMode
+                    },
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column {
+                Text(
+                    text = when {
+                        isAutoTheme && isArabic -> "تلقائي"
+                        isAutoTheme -> "Auto Theme"
+                        isDarkMode && isArabic -> "الوضع الليلي"
+                        isDarkMode -> "Night Mode"
+                        isArabic -> "الوضع النهاري"
+                        else -> "Day Mode"
+                    },
+                    color = TextPrimary,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isAutoTheme) {
+                        if (isArabic) "يتبع سمة الهاتف تلقائياً" else "Follows system appearance"
+                    } else {
+                        if (isArabic) "تبديل يدوي فوري للمظهر" else "Manual theme override"
+                    },
+                    color = if (isAutoTheme) EmeraldSavings else TextSecondary,
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .defaultMinSize(minWidth = 56.dp, minHeight = 48.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = ripple(bounded = true, color = EmeraldSavings),
+                        onClick = onAutoToggle
+                    )
+                    .testTag("theme_auto_button"),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (isAutoTheme) {
+                                EmeraldSavings.copy(alpha = 0.22f)
+                            } else if (isLight) {
+                                Color(0xFFE2E8F0)
+                            } else {
+                                Color(0x330B111E)
+                            }
                         )
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Text(
-                            text = when {
-                                isAutoTheme && isArabic -> "تلقائي"
-                                isAutoTheme -> "Auto"
-                                isDarkMode && isArabic -> "الوضع الليلي"
-                                isDarkMode -> "Night Mode"
-                                isArabic -> "الوضع النهاري"
-                                else -> "Day Mode"
-                            },
-                            color = TextPrimary,
-                            fontSize = 14.5.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        if (isAutoTheme) {
-                            Text(
-                                text = if (isArabic) "حسب وضع الهاتف" else "Follows system",
-                                color = EmeraldSavings,
-                                fontSize = 10.5.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    // Auto Button (48dp min accessible target with compact 32dp pill)
-                    Box(
-                        modifier = Modifier
-                            .defaultMinSize(minWidth = 56.dp, minHeight = 48.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(bounded = true, color = EmeraldSavings),
-                                onClick = onAutoToggle
-                            )
-                            .testTag("theme_auto_button"),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .height(32.dp)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(
-                                    if (isAutoTheme) {
-                                        EmeraldSavings.copy(alpha = 0.22f)
-                                    } else if (isLight) {
-                                        Color(0xFFE2E8F0)
-                                    } else {
-                                        Color(0x330B111E)
-                                    }
-                                )
-                                .border(
-                                    BorderStroke(
-                                        width = if (isAutoTheme) 1.5.dp else 1.dp,
-                                        color = if (isAutoTheme) {
-                                            EmeraldSavings
-                                        } else if (isLight) {
-                                            Color(0xFFCBD5E1)
-                                        } else {
-                                            Color(0x44FFFFFF)
-                                        }
-                                    ),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .padding(horizontal = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Auto",
+                        .border(
+                            BorderStroke(
+                                width = if (isAutoTheme) 1.5.dp else 1.dp,
                                 color = if (isAutoTheme) {
-                                    if (isLight) Color(0xFF047857) else EmeraldSavings
+                                    EmeraldSavings
+                                } else if (isLight) {
+                                    Color(0xFFCBD5E1)
                                 } else {
-                                    TextSecondary
-                                },
-                                fontSize = 12.sp,
-                                fontWeight = if (isAutoTheme) FontWeight.ExtraBold else FontWeight.SemiBold,
-                                maxLines = 1
-                            )
-                        }
-                    }
-
-                    // Custom Switch Toggle with Glowing Active State
-                    NeumorphicGlowingSwitch(
-                        checked = isDarkMode,
-                        onCheckedChange = onDarkModeChange,
-                        activeColor = ElectricCyan,
-                        inactiveColor = NeonAmber,
-                        checkedIcon = Icons.Default.DarkMode,
-                        uncheckedIcon = Icons.Default.LightMode,
-                        onPositionChanged = onSwitchPositionChanged,
-                        modifier = Modifier.testTag("theme_switch_toggle")
+                                    Color(0x44FFFFFF)
+                                }
+                            ),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Auto",
+                        color = if (isAutoTheme) {
+                            if (isLight) Color(0xFF047857) else EmeraldSavings
+                        } else {
+                            TextSecondary
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = if (isAutoTheme) FontWeight.ExtraBold else FontWeight.SemiBold,
+                        maxLines = 1
                     )
                 }
             }
+
+            NeumorphicGlowingSwitch(
+                checked = isDarkMode,
+                onCheckedChange = onDarkModeChange,
+                activeColor = ElectricCyan,
+                inactiveColor = NeonAmber,
+                checkedIcon = Icons.Default.DarkMode,
+                uncheckedIcon = Icons.Default.LightMode,
+                onPositionChanged = onSwitchPositionChanged,
+                modifier = Modifier.testTag("theme_switch_toggle")
+            )
         }
     }
 }
 
-/**
- * 2b. Dynamic App Title Wind Glow Effect Toggle Section
- */
 @Composable
-private fun DynamicGlowToggleSection(
-    isEnabled: Boolean,
-    isArabic: Boolean,
-    onToggleChange: (Boolean) -> Unit
+private fun SettingsToggleRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    accentColor: Color,
+    onCheckedChange: (Boolean) -> Unit,
+    switchTestTag: String
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-
-    NeumorphicGlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        glowColor = if (isEnabled) ElectricCyan.copy(alpha = 0.30f) else Color.Transparent
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = { onCheckedChange(!checked) })
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (checked) accentColor.copy(alpha = 0.16f) else Color(0x18777777)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (isEnabled) ElectricCyan.copy(alpha = 0.15f) else Color(0x18777777)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.AutoAwesome,
-                        contentDescription = null,
-                        tint = if (isEnabled) ElectricCyan else TextSecondary,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (checked) accentColor else TextSecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
 
-                Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
+            Column {
                 Text(
-                    text = if (isArabic) "التأثير الحركي لاسم التطبيق" else "App Title Dynamic Glow",
+                    text = title,
                     color = TextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold
                 )
+                Text(
+                    text = subtitle,
+                    color = if (checked) accentColor else TextSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-
-            NeumorphicGlowingSwitch(
-                checked = isEnabled,
-                onCheckedChange = onToggleChange,
-                activeColor = ElectricCyan,
-                inactiveColor = if (isLight) Color(0xFFCBD5E1) else Color(0xFF475569),
-                checkedIcon = Icons.Default.AutoAwesome,
-                uncheckedIcon = Icons.Default.AutoAwesome,
-                modifier = Modifier.testTag("dynamic_glow_switch")
-            )
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        NeumorphicGlowingSwitch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            activeColor = accentColor,
+            inactiveColor = if (isLight) Color(0xFFCBD5E1) else Color(0xFF475569),
+            checkedIcon = icon,
+            uncheckedIcon = icon,
+            modifier = Modifier.testTag(switchTestTag)
+        )
     }
 }
 
-/**
- * 2c. Interactive Fluid Water Physics Effect Toggle Section
- */
 @Composable
-private fun LiquidDockSwipeToggleSection(
-    isEnabled: Boolean,
-    isArabic: Boolean,
-    onToggleChange: (Boolean) -> Unit
+private fun SettingsActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    accentColor: Color,
+    onClick: () -> Unit,
+    testTag: String,
+    isLoading: Boolean = false
 ) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-
-    NeumorphicGlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        glowColor = if (isEnabled) ElectricCyan.copy(alpha = 0.30f) else Color.Transparent
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (isEnabled) ElectricCyan.copy(alpha = 0.15f) else Color(0x18777777)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.WaterDrop,
-                        contentDescription = null,
-                        tint = if (isEnabled) ElectricCyan else TextSecondary,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column {
-                    Text(
-                        text = if (isArabic) "فيزياء المياه في الدوك السفلي" else "Bottom Dock Fluid Water",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (isArabic) "تموجات المياه والتنقل بالسحب عبر الدوك" else "Water ripples & fluid swipe navigation",
-                        color = if (isEnabled) ElectricCyan else TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            NeumorphicGlowingSwitch(
-                checked = isEnabled,
-                onCheckedChange = onToggleChange,
-                activeColor = ElectricCyan,
-                inactiveColor = if (isLight) Color(0xFFCBD5E1) else Color(0xFF475569),
-                checkedIcon = Icons.Default.WaterDrop,
-                uncheckedIcon = Icons.Default.WaterDrop,
-                modifier = Modifier.testTag("liquid_dock_swipe_switch")
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .defaultMinSize(minHeight = 60.dp)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(bounded = true, color = accentColor),
+                onClick = onClick
             )
-        }
-    }
-}
-
-/**
- * 2d. Full Screen Mode Toggle Section (hides the phone's top status bar completely)
- */
-@Composable
-private fun FullScreenToggleSection(
-    isEnabled: Boolean,
-    isArabic: Boolean,
-    onToggleChange: (Boolean) -> Unit
-) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-
-    NeumorphicGlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        glowColor = if (isEnabled) ElectricCyan.copy(alpha = 0.30f) else Color.Transparent
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .testTag(testTag),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(accentColor.copy(alpha = 0.14f))
+                    .border(BorderStroke(1.dp, accentColor.copy(alpha = 0.35f)), RoundedCornerShape(11.dp)),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (isEnabled) ElectricCyan.copy(alpha = 0.15f) else Color(0x18777777)),
-                    contentAlignment = Alignment.Center
-                ) {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(16.dp),
+                        color = accentColor,
+                        strokeWidth = 2.dp
+                    )
+                } else {
                     Icon(
-                        imageVector = if (isEnabled) Icons.Default.Fullscreen else Icons.Default.FullscreenExit,
+                        imageVector = icon,
                         contentDescription = null,
-                        tint = if (isEnabled) ElectricCyan else TextSecondary,
+                        tint = accentColor,
                         modifier = Modifier.size(18.dp)
                     )
                 }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column {
-                    Text(
-                        text = if (isArabic) "وضع ملء الشاشة" else "Full Screen Mode",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (isArabic) "إخفاء شريط الهاتف العلوي بالكامل" else "Hide top status bar completely",
-                        color = if (isEnabled) ElectricCyan else TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
             }
 
-            NeumorphicGlowingSwitch(
-                checked = isEnabled,
-                onCheckedChange = onToggleChange,
-                activeColor = ElectricCyan,
-                inactiveColor = if (isLight) Color(0xFFCBD5E1) else Color(0xFF475569),
-                checkedIcon = Icons.Default.Fullscreen,
-                uncheckedIcon = Icons.Default.FullscreenExit,
-                modifier = Modifier.testTag("full_screen_switch")
-            )
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column {
+                Text(
+                    text = title,
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = TextSecondary,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
-/**
- * 2e. Two-Finger Swipe Gesture Toggle Section for Full Screen Mode
- */
-@Composable
-private fun TwoFingerFullScreenSwipeToggleSection(
-    isEnabled: Boolean,
-    isArabic: Boolean,
-    onToggleChange: (Boolean) -> Unit
-) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-
-    NeumorphicGlassCard(
-        modifier = Modifier.fillMaxWidth(),
-        glowColor = if (isEnabled) ElectricCyan.copy(alpha = 0.30f) else Color.Transparent
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(if (isEnabled) ElectricCyan.copy(alpha = 0.15f) else Color(0x18777777)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.SwipeVertical,
-                        contentDescription = null,
-                        tint = if (isEnabled) ElectricCyan else TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Column {
-                    Text(
-                        text = if (isArabic) "السحب بإصبعين لملء الشاشة" else "Two-Finger Full Screen Swipe",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = if (isArabic) {
-                            "اسحب بإصبعين للأعلى للتفعيل وللأسفل للإلغاء"
-                        } else {
-                            "Swipe 2 fingers up to enable, down to exit"
-                        },
-                        color = if (isEnabled) ElectricCyan else TextSecondary,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            NeumorphicGlowingSwitch(
-                checked = isEnabled,
-                onCheckedChange = onToggleChange,
-                activeColor = ElectricCyan,
-                inactiveColor = if (isLight) Color(0xFFCBD5E1) else Color(0xFF475569),
-                checkedIcon = Icons.Default.SwipeVertical,
-                uncheckedIcon = Icons.Default.SwipeVertical,
-                modifier = Modifier.testTag("two_finger_fullscreen_swipe_switch")
-            )
-        }
-    }
-}
-
-/**
- * Custom Neumorphic Switch Toggle with Animated Glowing Active States
- */
 @Composable
 fun NeumorphicGlowingSwitch(
     checked: Boolean,
@@ -1074,7 +995,6 @@ fun NeumorphicGlowingSwitch(
             ),
         contentAlignment = Alignment.CenterStart
     ) {
-        // Glowing halo behind thumb when active
         Box(
             modifier = Modifier
                 .offset(x = thumbOffset)
@@ -1100,133 +1020,6 @@ fun NeumorphicGlowingSwitch(
     }
 }
 
-/**
- * 3. QR Code Offline Sync Section
- * Streamlined to a single clean action button leading directly to the transfer & sync page.
- */
-@Composable
-private fun QrCodeOfflineSyncSection(
-    isArabic: Boolean,
-    onOpenTransfer: () -> Unit
-) {
-    SingleActionNavButton(
-        icon = Icons.Default.QrCode,
-        title = if (isArabic) "نقل ومشاركة القوائم (QR Code)" else "Transfer & Share Lists via QR",
-        accentColor = EmeraldSavings,
-        onClick = onOpenTransfer,
-        testTag = "open_qr_transfer_button"
-    )
-}
-
-/**
- * 4. Google Drive Cloud Backup Section
- * Streamlined to a single clean action button opening the Google Drive Backup & Restore dialog.
- */
-@Composable
-private fun GoogleDriveBackupSection(
-    isArabic: Boolean,
-    onOpenDrive: () -> Unit
-) {
-    SingleActionNavButton(
-        icon = Icons.Default.CloudDone,
-        title = if (isArabic) "النسخ الاحتياطي  (Google Drive)" else "Google Drive Backup",
-        accentColor = ElectricCyan,
-        onClick = onOpenDrive,
-        testTag = "open_google_drive_button"
-    )
-}
-
-/**
- * Clean Single Action Nav Button without clutter
- */
-@Composable
-private fun SingleActionNavButton(
-    icon: ImageVector,
-    title: String,
-    accentColor: Color,
-    onClick: () -> Unit,
-    testTag: String,
-    modifier: Modifier = Modifier,
-    isLoading: Boolean = false
-) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val btnBg = if (isLight) Color.White else Color(0x221E293B)
-    val btnBorder = if (isLight) BorderStroke(1.dp, LightCardBorder) else BorderStroke(1.dp, Color(0x33475569))
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(btnBg)
-            .border(btnBorder, RoundedCornerShape(14.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = true, color = accentColor),
-                onClick = onClick
-            )
-            .padding(horizontal = 16.dp)
-            .testTag(testTag),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(34.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(accentColor.copy(alpha = 0.15f))
-                        .border(BorderStroke(1.dp, accentColor.copy(alpha = 0.4f)), RoundedCornerShape(10.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            color = accentColor,
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        Icon(
-                            imageVector = icon,
-                            contentDescription = null,
-                            tint = accentColor,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = TextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-}
-
-/**
- * Dedicated Google Drive Backup & Restore Dialog
- */
 @Composable
 private fun GoogleDriveDialog(
     isArabic: Boolean,
@@ -1287,11 +1080,10 @@ private fun GoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Backup Button
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(EmeraldSavings.copy(alpha = 0.18f))
                         .border(BorderStroke(1.2.dp, EmeraldSavings), RoundedCornerShape(12.dp))
@@ -1326,11 +1118,10 @@ private fun GoogleDriveDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Restore Button
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
+                        .height(48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(ElectricCyan.copy(alpha = 0.18f))
                         .border(BorderStroke(1.2.dp, ElectricCyan), RoundedCornerShape(12.dp))
@@ -1367,113 +1158,17 @@ private fun GoogleDriveDialog(
     )
 }
 
-/**
- * 4b. In-App Update Section
- */
 @Composable
-private fun AppUpdateSection(
-    isArabic: Boolean,
-    updateStatus: AppUpdateStatus,
-    apkDownloadState: ApkDownloadState,
-    onOpenUpdate: () -> Unit
-) {
-    val isChecking = updateStatus is AppUpdateStatus.Checking
-    val availableUpdate = updateStatus as? AppUpdateStatus.UpdateAvailable
-    val hasUpdate = availableUpdate != null
-    val cleanVersion = availableUpdate?.latestVersion?.trim()?.removePrefix("v")?.removePrefix("V").orEmpty()
-
-    val title = when (apkDownloadState) {
-        is ApkDownloadState.Downloading -> if (isArabic) {
-            val pct = if (apkDownloadState.progressPercent >= 0) "${apkDownloadState.progressPercent}%" else "..."
-            "جاري تحميل التحديث ($pct)"
-        } else {
-            val pct = if (apkDownloadState.progressPercent >= 0) "${apkDownloadState.progressPercent}%" else "..."
-            "Downloading Update ($pct)"
-        }
-        is ApkDownloadState.Downloaded,
-        is ApkDownloadState.RequiresInstallPermission -> if (isArabic) {
-            "التحديث جاهز للتثبيت"
-        } else {
-            "Update Ready to Install"
-        }
-        else -> when (updateStatus) {
-            is AppUpdateStatus.Checking -> if (isArabic) "جاري التحقق..." else "Checking..."
-            is AppUpdateStatus.UpdateAvailable -> if (isArabic) {
-                "تحديث جديد متاح ($cleanVersion)"
-            } else {
-                "New Update Available ($cleanVersion)"
-            }
-            is AppUpdateStatus.Error -> if (isArabic) {
-                "تعذر التحقق من التحديث • اضغط للمحاولة"
-            } else {
-                "Update check failed • Tap to retry"
-            }
-            is AppUpdateStatus.Idle -> if (isArabic) {
-                "التحقق من وجود تحديثات"
-            } else {
-                "Check for Updates"
-            }
-            else -> if (isArabic) {
-                "التطبيق محدث الى اخر نسخة"
-            } else {
-                "App is up to date"
-            }
-        }
-    }
-
-    val accentColor = when {
-        isChecking -> ElectricCyan
-        hasUpdate || updateStatus is AppUpdateStatus.Error -> NeonAmber
-        updateStatus is AppUpdateStatus.Idle -> ElectricCyan
-        else -> EmeraldSavings
-    }
-
-    SingleActionNavButton(
-        icon = Icons.Default.SystemUpdate,
-        title = title,
-        accentColor = accentColor,
-        onClick = onOpenUpdate,
-        testTag = "open_app_update_button",
-        isLoading = isChecking
-    )
-}
-
-/**
- * 5. App & Developer Info Section
- * Redesigned with precision, modern glass aesthetics, and verified badge.
- */
-@Composable
-private fun DeveloperInfoSection(
-    isArabic: Boolean
-) {
+private fun DeveloperInfoSection(isArabic: Boolean) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val cardBg = if (isLight) Color(0xF7FFFFFF) else Color(0xD90E1726)
-    val cardBorder = if (isLight) {
-        BorderStroke(1.2.dp, LightCardBorder)
-    } else {
-        BorderStroke(
-            1.2.dp,
-            Brush.horizontalGradient(
-                listOf(
-                    ElectricCyan.copy(alpha = 0.45f),
-                    EmeraldSavings.copy(alpha = 0.35f),
-                    Color(0x33475569)
-                )
-            )
-        )
-    }
 
-    Box(
+    LiquidGlassCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(cardBg)
-            .border(cardBorder, RoundedCornerShape(22.dp))
-            .padding(18.dp)
-            .testTag("developer_info_card")
+            .testTag("developer_info_card"),
+        glowColor = ElectricCyan
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            // Top Profile Row: Glowing Monogram Avatar + Developer Name + Status Pill
+        Column(modifier = Modifier.padding(18.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -1483,14 +1178,13 @@ private fun DeveloperInfoSection(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Stylized Liquid Glowing Avatar
                     Box(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.sweepGradient(
-                                    listOf(ElectricCyan, EmeraldSavings, Color(0xFF8B5CF6), ElectricCyan)
+                                    listOf(ElectricCyan, EmeraldSavings, VioletAccent, ElectricCyan)
                                 )
                             )
                             .padding(2.dp)
@@ -1538,7 +1232,6 @@ private fun DeveloperInfoSection(
                     }
                 }
 
-                // Delicate Status Badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
@@ -1559,38 +1252,18 @@ private fun DeveloperInfoSection(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Soft Horizontal Hairline Divider
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color.Transparent,
-                                if (isLight) Color(0x22000000) else Color(0x33475569),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
+            SettingsGroupDivider(isLight = isLight)
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Precision Metadata Grid (2x2 Clean Layout)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Item 1: App Name
                 DeveloperInfoMicroCard(
                     title = if (isArabic) "التطبيق" else "App",
                     value = "Souq Flow",
                     modifier = Modifier.weight(1f)
                 )
-
-                // Item 2: Engine Stack
                 DeveloperInfoMicroCard(
                     title = if (isArabic) "المحرك" else "Stack",
                     value = "Compose • Room",
@@ -1604,14 +1277,11 @@ private fun DeveloperInfoSection(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Item 3: Build Version
                 DeveloperInfoMicroCard(
                     title = if (isArabic) "الإصدار" else "Version",
                     value = ShoppingViewModel.APP_VERSION,
                     modifier = Modifier.weight(1f)
                 )
-
-                // Item 4: Last Update Date
                 DeveloperInfoMicroCard(
                     title = if (isArabic) "التحديث" else "Updated",
                     value = if (isArabic) ShoppingViewModel.LAST_UPDATE_DATE_AR else ShoppingViewModel.LAST_UPDATE_DATE_EN,
@@ -1656,86 +1326,5 @@ private fun DeveloperInfoMicroCard(
                 overflow = TextOverflow.Ellipsis
             )
         }
-    }
-}
-
-/**
- * Standard Neumorphic & Soft Glass Card Container with glowing borders & elevation
- */
-@Composable
-private fun NeumorphicGlassCard(
-    modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(20.dp),
-    glowColor: Color = ElectricCyan,
-    content: @Composable BoxScope.() -> Unit
-) {
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val cardBg = if (isLight) Color(0xF2FFFFFF) else Color(0xCC0E1726)
-    val cardBorder = if (isLight) {
-        BorderStroke(1.2.dp, LightCardBorder)
-    } else {
-        BorderStroke(
-            1.2.dp,
-            Brush.linearGradient(
-                listOf(glowColor.copy(alpha = 0.55f), glowColor.copy(alpha = 0.15f), Color(0x10FFFFFF))
-            )
-        )
-    }
-
-    Box(
-        modifier = modifier
-            .shadow(
-                elevation = if (isLight) 2.dp else 4.dp,
-                shape = shape,
-                ambientColor = if (isLight) Color.Black.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.5f),
-                spotColor = if (isLight) Color.Black.copy(alpha = 0.08f) else glowColor.copy(alpha = 0.25f)
-            )
-            .clip(shape)
-            .background(cardBg)
-            .border(cardBorder, shape)
-    ) {
-        if (!isLight) {
-            // Specular glass highlight line along top edge
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color.Transparent, Color(0x40FFFFFF), Color(0x20FFFFFF), Color.Transparent)
-                        )
-                    )
-            )
-        }
-        content()
-    }
-}
-
-/**
- * Section Header Component
- */
-@Composable
-private fun SectionHeader(
-    icon: ImageVector,
-    title: String,
-    accentColor: Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = accentColor,
-            modifier = Modifier.size(18.dp)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = title,
-            color = TextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
-        )
     }
 }

@@ -2,17 +2,23 @@ package com.example.ui.components
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -188,7 +196,7 @@ fun LiquidGlassBackground(
 @Composable
 fun LiquidGlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(20.dp),
+    shape: Shape = RoundedCornerShape(22.dp),
     backgroundColor: Color? = null,
     borderColor: Color? = null,
     glowColor: Color? = null,
@@ -196,12 +204,29 @@ fun LiquidGlassCard(
     content: @Composable BoxScope.() -> Unit
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
-    val defaultBg = if (isLight) LightCardSurface else GlassSurface
+    val defaultBg = if (isLight) Color(0xEBFFFFFF) else Color(0xBF11192B)
     val resolvedBg = backgroundColor ?: defaultBg
+
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (isPressed && onClick != null) 0.976f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessMedium),
+        label = "card_press_scale"
+    )
 
     val borderStroke = if (isLight) {
         if (glowColor != null) {
-            BorderStroke(1.5.dp, glowColor.copy(alpha = 0.7f))
+            BorderStroke(
+                1.2.dp,
+                Brush.linearGradient(
+                    listOf(
+                        glowColor.copy(alpha = 0.55f),
+                        Color.White.copy(alpha = 0.9f),
+                        glowColor.copy(alpha = 0.25f)
+                    )
+                )
+            )
         } else {
             BorderStroke(1.dp, borderColor ?: LightCardBorder)
         }
@@ -210,14 +235,14 @@ fun LiquidGlassCard(
             BorderStroke(
                 1.dp,
                 Brush.linearGradient(
-                    listOf(glowColor.copy(alpha = 0.6f), glowColor.copy(alpha = 0.15f), Color(0x10FFFFFF))
+                    listOf(glowColor.copy(alpha = 0.58f), Color.White.copy(alpha = 0.16f), glowColor.copy(alpha = 0.14f))
                 )
             )
         } else {
             BorderStroke(
                 1.dp,
                 Brush.linearGradient(
-                    listOf(Color(0x33FFFFFF), Color(0x10FFFFFF), Color(0x05FFFFFF))
+                    listOf(Color(0x36FFFFFF), Color(0x14FFFFFF), Color(0x06FFFFFF))
                 )
             )
         }
@@ -225,33 +250,129 @@ fun LiquidGlassCard(
 
     val clickableModifier = if (onClick != null) {
         Modifier.clickable(
-            interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(bounded = true, color = ElectricCyan),
+            interactionSource = interactionSource,
+            indication = ripple(bounded = true, color = glowColor ?: ElectricCyan),
             onClick = onClick
         )
     } else Modifier
 
     Box(
         modifier = modifier
+            .scale(pressScale)
+            .then(
+                if (isLight) {
+                    Modifier.shadow(
+                        elevation = if (glowColor != null) 6.dp else 2.dp,
+                        shape = shape,
+                        ambientColor = Color(0x140F172A),
+                        spotColor = (glowColor ?: Color(0xFF0F172A)).copy(alpha = 0.12f)
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .clip(shape)
             .background(resolvedBg)
+            .then(
+                if (glowColor != null) {
+                    Modifier.drawBehind {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    glowColor.copy(alpha = if (isLight) 0.08f else 0.12f),
+                                    Color.Transparent
+                                ),
+                                center = Offset(size.width * 0.12f, 0f),
+                                radius = size.width * 0.7f
+                            ),
+                            radius = size.width * 0.7f,
+                            center = Offset(size.width * 0.12f, 0f)
+                        )
+                    }
+                } else {
+                    Modifier
+                }
+            )
             .border(borderStroke, shape)
             .then(clickableModifier)
     ) {
-        if (!isLight) {
-            // Specular highlight line along top edge for glossy glass effect in dark mode
+        // Specular highlight line along top edge for Apple Liquid Glass depth
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        if (isLight) {
+                            listOf(Color.Transparent, Color.White.copy(alpha = 0.95f), Color.Transparent)
+                        } else {
+                            listOf(Color.Transparent, Color(0x48FFFFFF), Color(0x22FFFFFF), Color.Transparent)
+                        }
+                    )
+                )
+        )
+        content()
+    }
+}
+
+@Composable
+fun SouqSectionHeader(
+    icon: ImageVector,
+    title: String,
+    accentColor: Color,
+    subtitle: String? = null,
+    trailing: (@Composable () -> Unit)? = null,
+    modifier: Modifier = Modifier
+) {
+    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(Color.Transparent, Color(0x40FFFFFF), Color(0x20FFFFFF), Color.Transparent)
-                        )
+                    .size(30.dp)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(accentColor.copy(alpha = if (isLight) 0.14f else 0.18f))
+                    .border(
+                        BorderStroke(1.dp, accentColor.copy(alpha = if (isLight) 0.35f else 0.4f)),
+                        RoundedCornerShape(9.dp)
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = accentColor,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(10.dp))
+            Column {
+                Text(
+                    text = title,
+                    color = if (isLight) Color(0xFF0F172A) else Color(0xFFF1F5F9),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                if (!subtitle.isNullOrBlank()) {
+                    Text(
+                        text = subtitle,
+                        color = if (isLight) Color(0xFF64748B) else Color(0xFF94A3B8),
+                        fontSize = 11.sp
                     )
-            )
+                }
+            }
         }
-        content()
+        if (trailing != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            trailing()
+        }
     }
 }
 
@@ -341,14 +462,23 @@ fun GlowingActionButton(
         }
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed && enabled) 0.968f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium),
+        label = "btn_press_scale"
+    )
+
     Box(
         modifier = modifier
+            .scale(scale)
             .clip(RoundedCornerShape(16.dp))
             .background(btnBrush)
             .border(btnBorder, RoundedCornerShape(16.dp))
             .clickable(
                 enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interactionSource,
                 indication = ripple(bounded = true, color = Color.White),
                 onClick = onClick
             )

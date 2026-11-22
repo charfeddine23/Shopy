@@ -1,8 +1,9 @@
 package com.example.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -28,10 +31,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -45,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -55,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.ShoppingItem
+import com.example.ui.components.AppleLiquidGlassTopBarLayout
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.LocalTutorialInteractionBus
@@ -72,11 +76,14 @@ import com.example.ui.theme.ElectricCyan
 import com.example.ui.theme.EmeraldSavings
 import com.example.ui.theme.GlassBorder
 import com.example.ui.theme.LightCardBorder
+import com.example.ui.theme.MintTintBg
+import com.example.ui.theme.MintTintText
 import com.example.ui.theme.NeonAmber
 import com.example.ui.theme.NeonRed
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.categoryAccentColor
 import com.example.ui.viewmodel.ShoppingViewModel
 import com.example.util.LocalizationUtil
 
@@ -109,6 +116,7 @@ fun SupermarketModeScreen(
         targetValue = if (budgetLimit > 0) {
             (stats.checkedTotalDzd / budgetLimit).toFloat().coerceIn(0f, 1f)
         } else 0f,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow),
         label = "budget_progress"
     )
 
@@ -121,23 +129,29 @@ fun SupermarketModeScreen(
         label = "progress_color"
     )
 
-    Box(modifier = modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 110.dp)
-        ) {
-            // Sticky-like Top Bar & HUD
-            item {
-                SupermarketModeHeader(
-                    isArabic = isArabic,
-                    onBack = onBack,
-                    hideChecked = hideChecked,
-                    onToggleHideChecked = { hideChecked = !hideChecked }
-                )
-            }
+    val listState = rememberLazyListState()
 
-            // Running Budget Live Calculator Card
+    AppleLiquidGlassTopBarLayout(
+        listState = listState,
+        modifier = modifier.fillMaxSize(),
+        defaultHeaderHeight = 74.dp,
+        topBar = {
+            SupermarketModeHeader(
+                isArabic = isArabic,
+                onBack = onBack,
+                hideChecked = hideChecked,
+                onToggleHideChecked = { hideChecked = !hideChecked }
+            )
+        }
+    ) { topPadding ->
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = topPadding + 4.dp, bottom = 114.dp)
+        ) {
+            // Live Dual Telemetry Budget HUD Card
             item {
+                val remaining = budgetLimit - stats.checkedTotalDzd
                 LiquidGlassCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -155,67 +169,83 @@ fun SupermarketModeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = if (isArabic) "إجمالي المشتريات الحالية (في السلة)" else "Current Cart Total",
+                                    text = if (isArabic) "في السلة الآن" else "In Cart Now",
                                     color = TextSecondary,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
+                                    fontWeight = FontWeight.SemiBold
                                 )
-                                Spacer(modifier = Modifier.height(2.dp))
-                                Row(verticalAlignment = Alignment.Bottom) {
-                                    Text(
-                                        text = LocalizationUtil.formatDzd(stats.checkedTotalDzd, isArabic),
-                                        color = progressColor,
-                                        fontSize = 32.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "/ " + LocalizationUtil.formatDzd(budgetLimit, isArabic),
-                                        color = TextSecondary,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        modifier = Modifier.padding(bottom = 4.dp)
-                                    )
-                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = LocalizationUtil.formatDzd(stats.checkedTotalDzd, isArabic),
+                                    color = progressColor,
+                                    style = MaterialTheme.typography.displayMedium.copy(fontSize = 29.sp),
+                                    fontWeight = FontWeight.ExtraBold
+                                )
                             }
 
-                            // Edit budget button
-                            IconButton(
-                                onClick = {
-                                    if (isExpectingBudgetInteraction) {
-                                        tutorialBus?.reportAction(TutorialRequiredAction.INTERACT_BUDGET_HUD)
-                                    } else {
-                                        showEditBudgetDialog = true
-                                    }
-                                },
+                            // Edit Budget Pill
+                            Row(
                                 modifier = Modifier
-                                    .clip(CircleShape)
-                                    .background(Color(0x20FFFFFF))
-                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (isLight) CyanTintBg else ElectricCyan.copy(alpha = 0.16f))
+                                    .border(
+                                        BorderStroke(1.dp, if (isLight) CyanTintBorder else ElectricCyan.copy(alpha = 0.5f)),
+                                        RoundedCornerShape(14.dp)
+                                    )
+                                    .clickable {
+                                        if (isExpectingBudgetInteraction) {
+                                            tutorialBus?.reportAction(TutorialRequiredAction.INTERACT_BUDGET_HUD)
+                                        } else {
+                                            showEditBudgetDialog = true
+                                        }
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Edit,
                                     contentDescription = "Edit Budget",
-                                    tint = ElectricCyan,
-                                    modifier = Modifier.size(18.dp)
+                                    tint = if (isLight) CyanTintText else ElectricCyan,
+                                    modifier = Modifier.size(15.dp)
+                                )
+                                Spacer(modifier = Modifier.width(5.dp))
+                                Text(
+                                    text = LocalizationUtil.formatDzd(budgetLimit, isArabic),
+                                    color = if (isLight) CyanTintText else ElectricCyan,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
 
-                        // Linear Budget Progress Bar
-                        LinearProgressIndicator(
-                            progress = { budgetProgress },
+                        // Gradient Animated Budget Gauge
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp)),
-                            color = progressColor,
-                            trackColor = Color(0x33FFFFFF)
-                        )
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(if (isLight) Color(0xFFE2E8F0) else Color(0x28FFFFFF))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(budgetProgress.coerceAtLeast(0.02f))
+                                    .fillMaxHeight()
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(progressColor.copy(alpha = 0.85f), progressColor)
+                                        )
+                                    )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        HorizontalDivider(color = if (isLight) Color(0xFFE2EAF2) else Color(0x1CFFFFFF))
 
                         Spacer(modifier = Modifier.height(10.dp))
 
@@ -224,35 +254,49 @@ fun SupermarketModeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "${stats.checkedCount} / ${stats.totalCount} " +
-                                    if (isArabic) "عناصر تم وضعها في العربة" else "items in cart",
-                                color = TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.16f))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = "${stats.checkedCount}/${stats.totalCount}",
+                                        color = if (isLight) MintTintText else EmeraldSavings,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isArabic) "في العربة" else "items picked",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
 
-                            val remaining = budgetLimit - stats.checkedTotalDzd
                             if (remaining >= 0) {
                                 Text(
                                     text = if (isArabic) {
-                                        "متبقي للميزانية: ${LocalizationUtil.formatDzd(remaining, true)}"
+                                        "المتبقي: ${LocalizationUtil.formatDzd(remaining, true)}"
                                     } else {
-                                        "Remaining: ${LocalizationUtil.formatDzd(remaining, false)}"
+                                        "Left: ${LocalizationUtil.formatDzd(remaining, false)}"
                                     },
-                                    color = EmeraldSavings,
-                                    fontSize = 12.sp,
+                                    color = if (isLight) MintTintText else EmeraldSavings,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             } else {
                                 Text(
                                     text = if (isArabic) {
-                                        "تجاوزت الميزانية بـ ${LocalizationUtil.formatDzd(-remaining, true)}"
+                                        "تجاوز بـ ${LocalizationUtil.formatDzd(-remaining, true)}"
                                     } else {
                                         "Over by ${LocalizationUtil.formatDzd(-remaining, false)}"
                                     },
                                     color = NeonRed,
-                                    fontSize = 12.sp,
+                                    fontSize = 12.5.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -265,10 +309,10 @@ fun SupermarketModeScreen(
             if (displayItems.isNotEmpty()) {
                 item {
                     Text(
-                        text = if (isArabic) "👈 اسحب أي عنصر لحذفه من السلة" else "👉 Swipe any item to remove from cart",
+                        text = if (isArabic) "👈 اسحب أي عنصر لحذفه من السلة • اضغط على البطاقة لتحديد الشراء" else "👉 Swipe to remove • Tap card to check off",
                         color = TextMuted,
-                        fontSize = 11.sp,
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
+                        fontSize = 11.5.sp,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -279,7 +323,9 @@ fun SupermarketModeScreen(
                     onDelete = { viewModel.deleteItem(item) },
                     isArabic = isArabic,
                     deleteLabel = if (isArabic) "حذف من السلة" else "Remove from cart",
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp)
+                    modifier = Modifier
+                        .animateItem()
+                        .padding(horizontal = 16.dp, vertical = 5.dp)
                 ) {
                     SupermarketItemCard(
                         item = item,
@@ -292,21 +338,21 @@ fun SupermarketModeScreen(
             }
         }
 
-        // Bottom Done bar
+        // Floating Liquid Glass Bottom Checkout Bar
         val bottomFadeColors = if (isLight) {
-            listOf(Color.Transparent, Color(0xF0F2F6F9), BackgroundLight)
+            listOf(Color.Transparent, Color(0xEBF2F6F9), BackgroundLight)
         } else {
-            listOf(Color.Transparent, Color(0xF00B0E14), Color(0xFF0B0E14))
+            listOf(Color.Transparent, Color(0xEB0B0E14), Color(0xFF0B0E14))
         }
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .background(Brush.verticalGradient(bottomFadeColors))
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             GlowingActionButton(
-                text = if (isArabic) "إنهاء التسوق وتفريغ المكتمل" else "Finish Shopping (${stats.checkedCount}/${stats.totalCount})",
+                text = if (isArabic) "إنهاء التسوق وتفريغ المكتمل (${stats.checkedCount}/${stats.totalCount})" else "Finish Shopping (${stats.checkedCount}/${stats.totalCount})",
                 icon = Icons.Default.DoneAll,
                 color = EmeraldSavings,
                 onClick = { showFinishDialog = true },
@@ -522,14 +568,20 @@ fun SupermarketItemCard(
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
+    val catColor = categoryAccentColor(item.category, isLight)
     val checkColor by animateColorAsState(
         targetValue = if (item.isChecked) CheckedGreen else Color.Transparent,
         label = "big_check_color"
     )
+    val checkScale by animateFloatAsState(
+        targetValue = if (item.isChecked) 1.05f else 1f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium),
+        label = "big_check_scale"
+    )
 
-    val isLight = MaterialTheme.colorScheme.background == BackgroundLight
     val cardBackground = if (item.isChecked) {
-        if (isLight) Color(0xFFF1F5F9) else Color(0xFF0F172A)
+        if (isLight) Color(0xFFF3F6FA) else Color(0xFF0E1628)
     } else {
         if (isLight) Color(0xFFFFFFFF) else Color(0xFF131D31)
     }
@@ -539,19 +591,31 @@ fun SupermarketItemCard(
             .fillMaxWidth()
             .testTag("supermarket_item_${item.id}"),
         backgroundColor = cardBackground,
-        glowColor = if (item.isChecked) null else EmeraldSavings.copy(alpha = 0.4f),
+        glowColor = if (item.isChecked) null else catColor.copy(alpha = 0.5f),
         onClick = onToggleChecked
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 12.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Extra-Large 54dp High-Contrast Check Button (For effortless tapping in aisles)
+            // Vertical Category Stripe
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(if (item.isChecked) CheckedGreen.copy(alpha = 0.5f) else catColor)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Extra-Large 54dp High-Contrast Check Button
             Box(
                 modifier = Modifier
                     .size(54.dp)
+                    .scale(checkScale)
                     .clip(CircleShape)
                     .background(checkColor)
                     .border(
@@ -570,14 +634,14 @@ fun SupermarketItemCard(
                         imageVector = Icons.Default.Check,
                         contentDescription = "Checked",
                         tint = Color.White,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(30.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
 
-            // Oversized Title and Info (Name - Type and Details)
+            // Oversized Title and Subtotal Info
             Column(modifier = Modifier.weight(1f)) {
                 val rawTitle = if (isArabic) item.nameAr else item.name
                 val displayTitle = if (rawTitle.contains("(") && rawTitle.contains(")")) {
@@ -594,7 +658,7 @@ fun SupermarketItemCard(
                 Text(
                     text = displayTitle,
                     color = if (item.isChecked) TextMuted else TextPrimary,
-                    fontSize = 18.sp,
+                    fontSize = 17.5.sp,
                     fontWeight = FontWeight.Bold,
                     textDecoration = if (item.isChecked) TextDecoration.LineThrough else null,
                     maxLines = 1,
@@ -607,28 +671,41 @@ fun SupermarketItemCard(
                     Text(
                         text = "${item.quantity} ${item.unit}",
                         color = if (isLight) CyanTintText else ElectricCyan,
-                        fontSize = 14.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold
                     )
 
                     if (item.estimatedPriceDzd > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "• " + LocalizationUtil.formatDzd(item.estimatedPriceDzd * item.quantity, isArabic),
-                            color = EmeraldSavings,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.16f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = LocalizationUtil.formatDzd(item.estimatedPriceDzd * item.quantity, isArabic),
+                                color = if (isLight) MintTintText else EmeraldSavings,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
                     }
                 }
             }
 
-            // Quick quantity adjustments
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Quick Quantity Stepper with live quantity display
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (isLight) Color(0xFFF1F5F9) else Color(0x331C283E))
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (isLight) Color(0xFFF1F5F9) else Color(0x381C283E))
+                    .border(
+                        BorderStroke(1.dp, if (isLight) LightCardBorder else Color(0x18FFFFFF)),
+                        RoundedCornerShape(14.dp)
+                    )
                     .padding(horizontal = 4.dp, vertical = 4.dp)
             ) {
                 Box(
@@ -638,8 +715,21 @@ fun SupermarketItemCard(
                         .clickable(onClick = onDecrement),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("–", color = ElectricCyan, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "–",
+                        color = if (isLight) CyanTintText else ElectricCyan,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+
+                Text(
+                    text = "${item.quantity}",
+                    color = TextPrimary,
+                    fontSize = 14.5.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
 
                 Box(
                     modifier = Modifier
@@ -648,7 +738,12 @@ fun SupermarketItemCard(
                         .clickable(onClick = onIncrement),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("+", color = ElectricCyan, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        "+",
+                        color = if (isLight) CyanTintText else ElectricCyan,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
