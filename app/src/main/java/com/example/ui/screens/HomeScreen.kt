@@ -109,18 +109,15 @@ import com.example.ui.components.AppleLiquidGlassTopBarLayout
 import com.example.ui.components.GlowingActionButton
 import com.example.ui.components.LiquidGlassCard
 import com.example.ui.components.LiquidSheetShape
-import com.example.ui.components.LocalTutorialInteractionBus
 import com.example.ui.components.PullUpGestureState
 import com.example.ui.components.ShopyDialog
 import com.example.ui.components.SouqSectionHeader
 import com.example.ui.components.SwipeToDeleteContainer
-import com.example.ui.components.TutorialRequiredAction
 import com.example.ui.components.WindGlowAppNameBanner
 import com.example.ui.components.disableParentPagerSwipe
 import com.example.ui.components.horizontalFadingEdge
 import com.example.ui.components.liquidWindowContainerColor
 import com.example.ui.components.singleFingerPullUpToAdd
-import com.example.ui.components.tutorialTarget
 import com.example.ui.theme.BackgroundLight
 import com.example.ui.theme.CheckedGreen
 import com.example.ui.theme.CyanTintBg
@@ -169,8 +166,6 @@ fun HomeScreen(
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
-    val tutorialBus = LocalTutorialInteractionBus.current
-    val isExpectingPullUpAction = tutorialBus?.isExpecting(TutorialRequiredAction.PULL_UP_ADD_ITEM) == true
 
     val filteredItems by remember(items, selectedCategory, listSearchQuery) {
         derivedStateOf {
@@ -226,15 +221,8 @@ fun HomeScreen(
                 HomeSummaryHud(
                     stats = stats,
                     isArabic = isArabic,
-                    isExpectingPullUpAction = isExpectingPullUpAction,
                     onFinishShopping = { showFinishTripDialog = true },
-                    onQuickAdd = {
-                        if (isExpectingPullUpAction) {
-                            tutorialBus?.reportAction(TutorialRequiredAction.PULL_UP_ADD_ITEM)
-                        } else {
-                            showAddDialog = true
-                        }
-                    },
+                    onQuickAdd = { showAddDialog = true },
                     onOpenProducts = onNavigateToPriceComparison,
                     onOpenAnalytics = onNavigateToStatistics,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
@@ -412,21 +400,9 @@ fun HomeScreen(
                 item {
                     EmptyListCard(
                         isArabic = isArabic,
-                        isTutorialActive = isExpectingPullUpAction,
                         hasSearchFilter = listSearchQuery.isNotBlank(),
                         onClearFilter = { listSearchQuery = "" },
-                        onAddItem = {
-                            if (isExpectingPullUpAction) {
-                                tutorialBus?.reportAction(TutorialRequiredAction.PULL_UP_ADD_ITEM)
-                            } else {
-                                showAddDialog = true
-                            }
-                        },
-                        onTapDuringTutorial = {
-                            viewModel.emitUserMessage(
-                                if (isArabic) "اسحب البطاقة للأعلى بإصبعك لتنفيذ الشرح!" else "Pull the card upward with one finger to complete this step!"
-                            )
-                        }
+                        onAddItem = { showAddDialog = true }
                     )
                 }
             } else {
@@ -598,7 +574,6 @@ private fun HomeHeader(
             trailingAction = {
                 Box(
                     modifier = Modifier
-                        .tutorialTarget("supermarket_mode_header_pill")
                         .clip(RoundedCornerShape(20.dp))
                         .background(shopPillBg)
                         .border(BorderStroke(1.2.dp, shopPillBorder), RoundedCornerShape(20.dp))
@@ -649,7 +624,6 @@ private fun HomeHeader(
 private fun HomeSummaryHud(
     stats: com.example.ui.viewmodel.ShoppingStats,
     isArabic: Boolean,
-    isExpectingPullUpAction: Boolean = false,
     onFinishShopping: () -> Unit = {},
     onQuickAdd: () -> Unit = {},
     onOpenProducts: () -> Unit = {},
@@ -810,11 +784,9 @@ private fun HomeSummaryHud(
                     accentColor = if (isLight) CyanTintText else ElectricCyan,
                     bgColor = if (isLight) CyanTintBg else ElectricCyan.copy(alpha = 0.16f),
                     borderColor = if (isLight) CyanTintBorder else ElectricCyan.copy(alpha = 0.55f),
-                    isHighlighted = isExpectingPullUpAction,
                     onClick = onQuickAdd,
                     modifier = Modifier
                         .weight(1.1f)
-                        .tutorialTarget("add_item_action_button")
                         .testTag("add_item_action_button")
                 )
 
@@ -854,15 +826,14 @@ private fun HeroQuickActionButton(
     bgColor: Color,
     borderColor: Color,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isHighlighted: Boolean = false
+    modifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier
             .heightIn(min = 48.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(bgColor)
-            .border(BorderStroke(if (isHighlighted) 1.6.dp else 1.dp, borderColor), RoundedCornerShape(14.dp))
+            .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.Center,
@@ -1286,11 +1257,9 @@ fun ShoppingItemRow(
 @Composable
 private fun EmptyListCard(
     isArabic: Boolean,
-    isTutorialActive: Boolean = false,
     hasSearchFilter: Boolean = false,
     onClearFilter: () -> Unit = {},
-    onAddItem: () -> Unit,
-    onTapDuringTutorial: () -> Unit = {}
+    onAddItem: () -> Unit
 ) {
     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
     val haptic = LocalHapticFeedback.current
@@ -1319,7 +1288,6 @@ private fun EmptyListCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
-            .tutorialTarget("empty_shopping_list_card")
             .singleFingerPullUpToAdd(
                 enabled = !hasSearchFilter,
                 onStateChanged = { pullState = it },
@@ -1412,11 +1380,7 @@ private fun EmptyListCard(
                 },
                 icon = if (hasSearchFilter) Icons.Default.Clear else Icons.Default.KeyboardArrowUp,
                 onClick = {
-                    when {
-                        hasSearchFilter -> onClearFilter()
-                        isTutorialActive -> onTapDuringTutorial()
-                        else -> onAddItem()
-                    }
+                    if (hasSearchFilter) onClearFilter() else onAddItem()
                 },
                 color = if (pullState.isThresholdReached) EmeraldSavings else ElectricCyan,
                 modifier = Modifier.testTag("pull_up_add_items_button")

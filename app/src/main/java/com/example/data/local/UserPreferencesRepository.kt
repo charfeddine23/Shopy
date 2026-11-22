@@ -41,10 +41,7 @@ data class AppPreferencesState(
     val hasSeededSpending: Boolean = false,
     val hasSeededCatalog: Boolean = false,
     val lastUpdateCheckTimestamp: Long = 0L,
-    val latestKnownVersion: String = "",
-    val hasSeenTutorial: Boolean = false,
-    val lastSeenTutorialSignature: String = "",
-    val seenTutorialStepIds: String = ""
+    val latestKnownVersion: String = ""
 )
 
 interface AppPreferencesStorage {
@@ -70,9 +67,6 @@ interface AppPreferencesStorage {
     suspend fun setHasSeededCatalog(seeded: Boolean)
     suspend fun setLastUpdateCheckTimestamp(timestamp: Long)
     suspend fun setLatestKnownVersion(version: String)
-    suspend fun setHasSeenTutorial(seen: Boolean)
-    suspend fun setLastSeenTutorialSignature(signature: String)
-    suspend fun setSeenTutorialStepIds(stepIdsCsv: String)
 }
 
 /**
@@ -109,9 +103,6 @@ class UserPreferencesRepository(context: Context) : AppPreferencesStorage {
         val HAS_SEEDED_CATALOG = booleanPreferencesKey("has_seeded_catalog")
         val LAST_UPDATE_CHECK_TS = longPreferencesKey("last_update_check_timestamp")
         val LATEST_KNOWN_VERSION = stringPreferencesKey("latest_known_version")
-        val HAS_SEEN_TUTORIAL = booleanPreferencesKey("has_seen_tutorial")
-        val LAST_SEEN_TUTORIAL_SIGNATURE = stringPreferencesKey("last_seen_tutorial_signature")
-        val SEEN_TUTORIAL_STEP_IDS = stringPreferencesKey("seen_tutorial_step_ids")
     }
 
     private val cachedFallback: AppPreferencesState by lazy { getInitialState() }
@@ -138,10 +129,7 @@ class UserPreferencesRepository(context: Context) : AppPreferencesStorage {
             hasSeededSpending = prefs[Keys.HAS_SEEDED_SPENDING] ?: fallback.hasSeededSpending,
             hasSeededCatalog = prefs[Keys.HAS_SEEDED_CATALOG] ?: fallback.hasSeededCatalog,
             lastUpdateCheckTimestamp = prefs[Keys.LAST_UPDATE_CHECK_TS] ?: fallback.lastUpdateCheckTimestamp,
-            latestKnownVersion = prefs[Keys.LATEST_KNOWN_VERSION] ?: fallback.latestKnownVersion,
-            hasSeenTutorial = prefs[Keys.HAS_SEEN_TUTORIAL] ?: fallback.hasSeenTutorial,
-            lastSeenTutorialSignature = prefs[Keys.LAST_SEEN_TUTORIAL_SIGNATURE] ?: fallback.lastSeenTutorialSignature,
-            seenTutorialStepIds = prefs[Keys.SEEN_TUTORIAL_STEP_IDS] ?: fallback.seenTutorialStepIds
+            latestKnownVersion = prefs[Keys.LATEST_KNOWN_VERSION] ?: fallback.latestKnownVersion
         )
     }
 
@@ -181,10 +169,7 @@ class UserPreferencesRepository(context: Context) : AppPreferencesStorage {
             hasSeededSpending = cachePrefs.getBoolean("has_seeded_spending", false),
             hasSeededCatalog = cachePrefs.getBoolean("has_seeded_catalog", false),
             lastUpdateCheckTimestamp = cachePrefs.getLong("last_update_check_timestamp", 0L),
-            latestKnownVersion = cachePrefs.getString("latest_known_version", "") ?: "",
-            hasSeenTutorial = cachePrefs.getBoolean("has_seen_tutorial", false),
-            lastSeenTutorialSignature = cachePrefs.getString("last_seen_tutorial_signature", "") ?: "",
-            seenTutorialStepIds = cachePrefs.getString("seen_tutorial_step_ids", "") ?: ""
+            latestKnownVersion = cachePrefs.getString("latest_known_version", "") ?: ""
         )
     }
 
@@ -292,21 +277,6 @@ class UserPreferencesRepository(context: Context) : AppPreferencesStorage {
         dataStore.edit { it[Keys.LATEST_KNOWN_VERSION] = version }
     }
 
-    override suspend fun setHasSeenTutorial(seen: Boolean) {
-        cachePrefs.edit().putBoolean("has_seen_tutorial", seen).apply()
-        dataStore.edit { it[Keys.HAS_SEEN_TUTORIAL] = seen }
-    }
-
-    override suspend fun setLastSeenTutorialSignature(signature: String) {
-        cachePrefs.edit().putString("last_seen_tutorial_signature", signature).commit()
-        dataStore.edit { it[Keys.LAST_SEEN_TUTORIAL_SIGNATURE] = signature }
-    }
-
-    override suspend fun setSeenTutorialStepIds(stepIdsCsv: String) {
-        cachePrefs.edit().putString("seen_tutorial_step_ids", stepIdsCsv).commit()
-        dataStore.edit { it[Keys.SEEN_TUTORIAL_STEP_IDS] = stepIdsCsv }
-    }
-
     companion object {
         private const val CACHE_PREFS_NAME = "shopy_pulse_prefs_cache"
     }
@@ -341,7 +311,4 @@ class InMemoryPreferencesStorage(
     override suspend fun setHasSeededCatalog(seeded: Boolean) { state.value = state.value.copy(hasSeededCatalog = seeded) }
     override suspend fun setLastUpdateCheckTimestamp(timestamp: Long) { state.value = state.value.copy(lastUpdateCheckTimestamp = timestamp) }
     override suspend fun setLatestKnownVersion(version: String) { state.value = state.value.copy(latestKnownVersion = version) }
-    override suspend fun setHasSeenTutorial(seen: Boolean) { state.value = state.value.copy(hasSeenTutorial = seen) }
-    override suspend fun setLastSeenTutorialSignature(signature: String) { state.value = state.value.copy(lastSeenTutorialSignature = signature) }
-    override suspend fun setSeenTutorialStepIds(stepIdsCsv: String) { state.value = state.value.copy(seenTutorialStepIds = stepIdsCsv) }
 }

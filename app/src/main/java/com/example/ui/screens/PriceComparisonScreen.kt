@@ -539,7 +539,7 @@ fun PriceComparisonScreen(
                     }
                 }
 
-                // Section Title + Quick Refresh & Settings Pill
+                // Section Title + Quick Refresh Pill
                 item {
                     val isLight = MaterialTheme.colorScheme.background == BackgroundLight
                     SouqSectionHeader(
@@ -548,53 +548,32 @@ fun PriceComparisonScreen(
                         subtitle = if (isArabic) "اضغط على أي مجموعة للتوسيع • اسحب للتحديث" else "Tap to expand • Pull down to sync",
                         accentColor = if (isLight) CyanTintText else ElectricCyan,
                         trailing = {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                IconButton(
-                                    onClick = { showUpdateSettingsDialog = true },
-                                    modifier = Modifier
-                                        .size(34.dp)
-                                        .clip(CircleShape)
-                                        .background(if (isLight) Color.White else Color(0x1EFFFFFF))
-                                        .border(BorderStroke(1.dp, if (isLight) LightCardBorder else Color(0x28FFFFFF)), CircleShape)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = if (isArabic) "إعدادات التحديث" else "Sync settings",
-                                        tint = TextSecondary,
-                                        modifier = Modifier.size(16.dp)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.16f))
+                                    .border(
+                                        BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.45f)),
+                                        RoundedCornerShape(12.dp)
                                     )
-                                }
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(if (isLight) MintTintBg else EmeraldSavings.copy(alpha = 0.16f))
-                                        .border(
-                                            BorderStroke(1.dp, if (isLight) MintTintBorder else EmeraldSavings.copy(alpha = 0.45f)),
-                                            RoundedCornerShape(12.dp)
-                                        )
-                                        .clickable(enabled = !isSyncingPrices) { viewModel.refreshEssentialPrices() }
-                                        .padding(horizontal = 10.dp, vertical = 7.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(
-                                            imageVector = Icons.Default.Refresh,
-                                            contentDescription = if (isArabic) "تحديث الأسعار" else "Refresh prices",
-                                            tint = if (isLight) MintTintText else EmeraldSavings,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(
-                                            text = if (isArabic) "تحديث" else "Sync",
-                                            color = if (isLight) MintTintText else EmeraldSavings,
-                                            fontSize = 11.5.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                    .clickable(enabled = !isSyncingPrices) { viewModel.refreshEssentialPrices() }
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = if (isArabic) "تحديث الأسعار" else "Refresh prices",
+                                        tint = if (isLight) MintTintText else EmeraldSavings,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = if (isArabic) "تحديث" else "Sync",
+                                        color = if (isLight) MintTintText else EmeraldSavings,
+                                        fontSize = 11.5.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         },

@@ -13,7 +13,6 @@ import com.example.data.model.MarketPrice
 import com.example.data.model.ShoppingItem
 import com.example.data.model.SpendingRecord
 import com.example.data.repository.ShoppingRepository
-import com.example.ui.components.AppTutorialRegistry
 import com.example.util.ApkDownloadState
 import com.example.util.AppUpdateChecker
 import com.example.util.AppUpdateStatus
@@ -46,8 +45,7 @@ import java.util.Locale
 @OptIn(FlowPreview::class)
 class ShoppingViewModel(
     private val repository: ShoppingRepository,
-    private val preferencesStorage: AppPreferencesStorage = InMemoryPreferencesStorage(),
-    private val tutorialSignature: String = AppTutorialRegistry.computeSignature(APP_VERSION)
+    private val preferencesStorage: AppPreferencesStorage = InMemoryPreferencesStorage()
 ) : ViewModel() {
 
     companion object {
@@ -229,38 +227,6 @@ class ShoppingViewModel(
         _isTwoFingerFullScreenSwipeEnabled.value = enabled
         viewModelScope.launch {
             preferencesStorage.setTwoFingerFullScreenSwipeEnabled(enabled)
-        }
-    }
-
-    private val _hasSeenTutorial = MutableStateFlow(
-        initialPrefs.lastSeenTutorialSignature == tutorialSignature && initialPrefs.hasSeenTutorial
-    )
-    val hasSeenTutorial: StateFlow<Boolean> = _hasSeenTutorial.asStateFlow()
-
-    private val _seenTutorialStepIds = MutableStateFlow(
-        AppTutorialRegistry.parseSeenStepIds(initialPrefs.seenTutorialStepIds)
-    )
-    val seenTutorialStepIds: StateFlow<Set<String>> = _seenTutorialStepIds.asStateFlow()
-
-    private val _showTutorialOverlay = MutableStateFlow(
-        initialPrefs.lastSeenTutorialSignature != tutorialSignature
-    )
-    val showTutorialOverlay: StateFlow<Boolean> = _showTutorialOverlay.asStateFlow()
-
-    fun openTutorial() {
-        _showTutorialOverlay.value = true
-    }
-
-    fun completeTutorial() {
-        _showTutorialOverlay.value = false
-        val allStepIds = AppTutorialRegistry.steps.map { it.id }.toSet()
-        val serializedIds = AppTutorialRegistry.serializeSeenStepIds(allStepIds)
-        _hasSeenTutorial.value = true
-        _seenTutorialStepIds.value = allStepIds
-        viewModelScope.launch {
-            preferencesStorage.setHasSeenTutorial(true)
-            preferencesStorage.setLastSeenTutorialSignature(tutorialSignature)
-            preferencesStorage.setSeenTutorialStepIds(serializedIds)
         }
     }
 

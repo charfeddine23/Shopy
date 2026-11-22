@@ -367,7 +367,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Section 3: Sync, Cloud Backup, Updates & Tutorial
+            // Section 3: Sync, Cloud Backup & Updates
             item {
                 val isChecking = updateStatus is AppUpdateStatus.Checking
                 val availableUpdate = updateStatus as? AppUpdateStatus.UpdateAvailable
@@ -463,17 +463,6 @@ fun SettingsScreen(
                                     }
                                 },
                                 testTag = "open_app_update_button"
-                            )
-
-                            SettingsGroupDivider(isLight = isLight, horizontalPadding = 14.dp)
-
-                            SettingsActionRow(
-                                icon = Icons.Default.AutoAwesome,
-                                title = if (isArabic) "الدليل التفاعلي لشرح التطبيق" else "Interactive App Tutorial",
-                                subtitle = if (isArabic) "جولة سريعة لاستكشاف جميع المزايا" else "Guided walkthrough of all features",
-                                accentColor = if (isLight) VioletDark else VioletAccent,
-                                onClick = { viewModel.openTutorial() },
-                                testTag = "open_tutorial_button"
                             )
                         }
                     }

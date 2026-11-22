@@ -104,24 +104,16 @@ import androidx.lifecycle.lifecycleScope
 import com.example.data.local.AppDatabase
 import com.example.data.local.UserPreferencesRepository
 import com.example.data.repository.ShoppingRepository
-import com.example.ui.components.AppTutorialOverlay
 import com.example.ui.components.AppUpdateOverlay
 import com.example.ui.components.FluidWaterState
 import com.example.ui.components.LiquidGlassBackground
 import com.example.ui.components.LocalPagerSwipeBlockController
 import com.example.ui.components.LocalPreservedTopInset
-import com.example.ui.components.LocalTutorialInteractionBus
-import com.example.ui.components.LocalTutorialTargetRegistry
 import com.example.ui.components.QrShareDialog
-import com.example.ui.components.TutorialInteractionBus
-import com.example.ui.components.TutorialRequiredAction
-import com.example.ui.components.TutorialScreenTarget
-import com.example.ui.components.TutorialTargetRegistry
 import com.example.ui.components.fluidWaterDistortion
 import com.example.ui.components.fluidWaterTouchPhysics
 import com.example.ui.components.rememberFluidWaterState
 import com.example.ui.components.rememberPagerSwipeBlockController
-import com.example.ui.components.tutorialTarget
 import com.example.ui.components.twoFingerFullScreenSwipe
 import com.example.util.AppUpdateStatus
 import com.example.ui.screens.HomeScreen
@@ -367,23 +359,6 @@ fun ShopyPulseApp(
     val updateStatus by viewModel.updateStatus.collectAsStateWithLifecycle()
     val showUpdateOverlay by viewModel.showUpdateOverlay.collectAsStateWithLifecycle()
     val apkDownloadState by viewModel.apkDownloadState.collectAsStateWithLifecycle()
-    val showTutorialOverlay by viewModel.showTutorialOverlay.collectAsStateWithLifecycle()
-    val hasSeenTutorial by viewModel.hasSeenTutorial.collectAsStateWithLifecycle()
-    val seenTutorialStepIds by viewModel.seenTutorialStepIds.collectAsStateWithLifecycle()
-    val tutorialTargetRegistry = remember { TutorialTargetRegistry() }
-    val tutorialInteractionBus = remember { TutorialInteractionBus() }
-    var tutorialFocusScreen by remember { mutableStateOf<Screen?>(null) }
-    LaunchedEffect(showTutorialOverlay) {
-        if (!showTutorialOverlay) {
-            tutorialFocusScreen = null
-            tutorialInteractionBus.clear()
-        }
-    }
-    val effectiveScreen = if (showTutorialOverlay && tutorialFocusScreen != null) {
-        tutorialFocusScreen!!
-    } else {
-        currentScreen
-    }
     var lastAutoInstallPath by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(apkDownloadState) {
@@ -440,9 +415,9 @@ fun ShopyPulseApp(
             }
     }
 
-    // Animate pager smoothly with spring physics whenever a primary screen or tutorial target screen is active
-    LaunchedEffect(effectiveScreen) {
-        val targetIndex = pagerScreens.indexOf(effectiveScreen)
+    // Animate pager smoothly with spring physics whenever a primary screen is active
+    LaunchedEffect(currentScreen) {
+        val targetIndex = pagerScreens.indexOf(currentScreen)
         if (targetIndex >= 0 && pagerState.currentPage != targetIndex) {
             pagerState.animateScrollToPage(
                 page = targetIndex,
@@ -460,8 +435,6 @@ fun ShopyPulseApp(
     }
 
     CompositionLocalProvider(
-        LocalTutorialTargetRegistry provides tutorialTargetRegistry,
-        LocalTutorialInteractionBus provides tutorialInteractionBus,
         LocalPreservedTopInset provides preservedTopPaddingDp
     ) {
     LiquidGlassBackground(isDarkMode = isDarkMode) {
@@ -479,55 +452,26 @@ fun ShopyPulseApp(
                 }
             },
             bottomBar = {
-                if (effectiveScreen != Screen.SUPERMARKET) {
-                    val activeDockScreen = pagerScreens.getOrNull(pagerState.currentPage) ?: effectiveScreen
+                if (currentScreen != Screen.SUPERMARKET) {
+                    val activeDockScreen = pagerScreens.getOrNull(pagerState.currentPage) ?: currentScreen
                     LiquidGlassBottomNavBar(
-                        currentScreen = if (effectiveScreen in pagerScreens) activeDockScreen else effectiveScreen,
+                        currentScreen = if (currentScreen in pagerScreens) activeDockScreen else currentScreen,
                         isArabic = isArabic,
                         isDarkMode = isDarkMode,
                         waterState = dockWaterState,
                         isFluidWaterEnabled = isFluidWaterEnabled,
                         onSelectScreen = { targetScreen ->
-                            when {
-                                tutorialInteractionBus.isExpecting(TutorialRequiredAction.SWITCH_DOCK_TAB) -> {
-                                    if (targetScreen != effectiveScreen) {
-                                        tutorialFocusScreen = targetScreen
-                                        tutorialInteractionBus.reportAction(TutorialRequiredAction.SWITCH_DOCK_TAB)
-                                    }
-                                }
-                                tutorialInteractionBus.isExpecting(TutorialRequiredAction.TAP_SETTINGS_TAB) -> {
-                                    if (targetScreen == Screen.SETTINGS) {
-                                        viewModel.setCurrentScreen(Screen.SETTINGS.name)
-                                        tutorialFocusScreen = Screen.SETTINGS
-                                        val settingsIdx = pagerScreens.indexOf(Screen.SETTINGS)
-                                        if (settingsIdx >= 0) {
-                                            coroutineScope.launch {
-                                                pagerState.animateScrollToPage(
-                                                    page = settingsIdx,
-                                                    animationSpec = spring(
-                                                        dampingRatio = 0.86f,
-                                                        stiffness = Spring.StiffnessMediumLow
-                                                    )
-                                                )
-                                            }
-                                        }
-                                        tutorialInteractionBus.reportAction(TutorialRequiredAction.TAP_SETTINGS_TAB)
-                                    }
-                                }
-                                !showTutorialOverlay -> {
-                                    viewModel.setCurrentScreen(targetScreen.name)
-                                    val idx = pagerScreens.indexOf(targetScreen)
-                                    if (idx >= 0) {
-                                        coroutineScope.launch {
-                                            pagerState.animateScrollToPage(
-                                                page = idx,
-                                                animationSpec = spring(
-                                                    dampingRatio = 0.86f,
-                                                    stiffness = Spring.StiffnessMediumLow
-                                                )
-                                            )
-                                        }
-                                    }
+                            viewModel.setCurrentScreen(targetScreen.name)
+                            val idx = pagerScreens.indexOf(targetScreen)
+                            if (idx >= 0) {
+                                coroutineScope.launch {
+                                    pagerState.animateScrollToPage(
+                                        page = idx,
+                                        animationSpec = spring(
+                                            dampingRatio = 0.86f,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -537,8 +481,7 @@ fun ShopyPulseApp(
             modifier = Modifier
                 .fillMaxSize()
                 .twoFingerFullScreenSwipe(
-                    enabled = isTwoFingerFullScreenSwipeEnabled ||
-                        tutorialInteractionBus.isExpecting(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE),
+                    enabled = isTwoFingerFullScreenSwipeEnabled,
                     onSwipeUp = {
                         if (!isFullScreen) {
                             try {
@@ -549,7 +492,6 @@ fun ShopyPulseApp(
                                 if (isArabic) "تم تفعيل وضع ملء الشاشة" else "Full Screen Enabled"
                             )
                         }
-                        tutorialInteractionBus.reportAction(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE)
                     },
                     onSwipeDown = {
                         if (isFullScreen) {
@@ -561,14 +503,13 @@ fun ShopyPulseApp(
                                 if (isArabic) "تم إيقاف وضع ملء الشاشة" else "Full Screen Disabled"
                             )
                         }
-                        tutorialInteractionBus.reportAction(TutorialRequiredAction.TWO_FINGER_FULLSCREEN_SWIPE)
                     }
                 )
         ) { innerPadding ->
             CompositionLocalProvider(
                 LocalPagerSwipeBlockController provides pagerSwipeBlockController
             ) {
-                val showMainPager = effectiveScreen != Screen.SUPERMARKET && effectiveScreen != Screen.STATISTICS
+                val showMainPager = currentScreen != Screen.SUPERMARKET && currentScreen != Screen.STATISTICS
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -613,7 +554,7 @@ fun ShopyPulseApp(
 
                     // Dedicated secondary screens (Supermarket Cart Mode & Statistics) with zero overlap over Home
                     AnimatedVisibility(
-                        visible = effectiveScreen == Screen.SUPERMARKET,
+                        visible = currentScreen == Screen.SUPERMARKET,
                         enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f, animationSpec = tween(200)),
                         exit = ExitTransition.None
                     ) {
@@ -624,7 +565,7 @@ fun ShopyPulseApp(
                     }
 
                     AnimatedVisibility(
-                        visible = effectiveScreen == Screen.STATISTICS,
+                        visible = currentScreen == Screen.STATISTICS,
                         enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.98f, animationSpec = tween(200)),
                         exit = ExitTransition.None
                     ) {
@@ -674,34 +615,6 @@ fun ShopyPulseApp(
                 )
             }
         }
-
-        // Luxury Live In-App Spotlight Coachmark Tutorial
-        AnimatedVisibility(
-            visible = showTutorialOverlay && !(showUpdateOverlay && availableUpdate != null),
-            enter = fadeIn(tween(240)),
-            exit = fadeOut(tween(180))
-        ) {
-            AppTutorialOverlay(
-                isArabic = isArabic,
-                isDarkMode = isDarkMode,
-                isReplayMode = hasSeenTutorial,
-                seenStepIds = seenTutorialStepIds,
-                onFocusScreen = { target ->
-                    tutorialFocusScreen = when (target) {
-                        TutorialScreenTarget.HOME -> Screen.HOME
-                        TutorialScreenTarget.PRICES -> Screen.PRICES
-                        TutorialScreenTarget.SUPERMARKET -> Screen.SUPERMARKET
-                        TutorialScreenTarget.STATISTICS -> Screen.STATISTICS
-                        TutorialScreenTarget.SETTINGS -> Screen.SETTINGS
-                    }
-                },
-                onClose = {
-                    tutorialFocusScreen = null
-                    tutorialInteractionBus.clear()
-                    viewModel.completeTutorial()
-                }
-            )
-        }
     }
     }
 }
@@ -748,7 +661,6 @@ fun LiquidGlassBottomNavBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .tutorialTarget("dock_nav")
                 .then(
                     if (!isDarkMode) {
                         Modifier.shadow(
@@ -830,8 +742,7 @@ fun LiquidGlassBottomNavBar(
                     accentColor = homeAccent,
                     unselectedColor = unselectedTint,
                     onClick = { onSelectScreen(Screen.HOME) },
-                    testTag = "nav_home",
-                    tutorialKey = "dock_tab_HOME"
+                    testTag = "nav_home"
                 )
 
                 // 2. Products & Price Comparison Tab
@@ -842,8 +753,7 @@ fun LiquidGlassBottomNavBar(
                     accentColor = pricesAccent,
                     unselectedColor = unselectedTint,
                     onClick = { onSelectScreen(Screen.PRICES) },
-                    testTag = "nav_products",
-                    tutorialKey = "dock_tab_PRICES"
+                    testTag = "nav_products"
                 )
 
                 // 3. Settings Tab ("الإعدادات" on one single line in a stationary fixed position)
@@ -854,8 +764,7 @@ fun LiquidGlassBottomNavBar(
                     accentColor = settingsAccent,
                     unselectedColor = unselectedTint,
                     onClick = { onSelectScreen(Screen.SETTINGS) },
-                    testTag = "nav_settings",
-                    tutorialKey = "dock_tab_SETTINGS"
+                    testTag = "nav_settings"
                 )
             }
         }
@@ -870,15 +779,13 @@ private fun RowScope.NavItem(
     accentColor: Color,
     unselectedColor: Color,
     onClick: () -> Unit,
-    testTag: String,
-    tutorialKey: String
+    testTag: String
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
     Box(
         modifier = Modifier
             .weight(1f)
-            .tutorialTarget(tutorialKey)
             .clip(RoundedCornerShape(20.dp))
             .clickable(
                 interactionSource = interactionSource,
